@@ -65,7 +65,9 @@ export function usePortfolioData() {
         throw new Error('No file selected');
       }
       const data = await StorageService.importFromJSON(file);
-      setPortfolio(new Portfolio(data)); // Set the state, then the user can save.
+      const imported = new Portfolio(data);
+      setPortfolio(imported);
+      await savePortfolio(imported);
       return true;
     } catch (error) {
       setSaveStatus('Import failed');
