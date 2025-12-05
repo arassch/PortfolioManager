@@ -14,10 +14,15 @@ export function usePortfolioData() {
 
   // Load portfolio on mount
   useEffect(() => {
-    loadPortfolio();
+    const initialize = async () => {
+      await StorageService.seedInitialData(); // Ensure data exists
+      await loadPortfolio(); // Then load it
+    };
+    initialize();
   }, []);
 
   const loadPortfolio = async () => {
+    setIsLoading(true);
     const data = await StorageService.loadPortfolio();
     if (data) {
       setPortfolio(new Portfolio(data));
@@ -25,16 +30,24 @@ export function usePortfolioData() {
     setIsLoading(false);
   };
 
-  const savePortfolio = async (updatedPortfolio) => {
+  const updatePortfolio = (newPortfolioData) => {
+    // Always create a new Portfolio instance to preserve methods
+    setPortfolio(new Portfolio(newPortfolioData));
+  };
+
+  const savePortfolio = async (portfolioToSave = portfolio) => {
     try {
-      setPortfolio(updatedPortfolio);
-      const success = await StorageService.savePortfolio(
-        updatedPortfolio.toJSON()
-      );
+      const payload = portfolioToSave instanceof Portfolio
+        ? portfolioToSave.toJSON()
+        : portfolioToSave;
+
+      const success = await StorageService.savePortfolio(payload);
       if (success) {
         setSaveStatus('Saved successfully!');
         setTimeout(() => setSaveStatus(''), 3000);
       }
+      // After saving, reload to get fresh data (like new account IDs) from the server
+      await loadPortfolio();
     } catch (error) {
       setSaveStatus('Save failed');
       console.error('Error saving portfolio:', error);
@@ -48,8 +61,7 @@ export function usePortfolioData() {
   const importPortfolio = async (file) => {
     try {
       const data = await StorageService.importFromJSON(file);
-      const newPortfolio = new Portfolio(data);
-      await savePortfolio(newPortfolio);
+      setPortfolio(new Portfolio(data)); // Set the state, then the user can save.
       return true;
     } catch (error) {
       setSaveStatus('Import failed');
@@ -60,7 +72,7 @@ export function usePortfolioData() {
 
   return {
     portfolio,
-    setPortfolio,
+    updatePortfolio,
     savePortfolio,
     exportPortfolio,
     importPortfolio,

@@ -57,12 +57,11 @@ import { CURRENCIES, CURRENCY_SYMBOLS } from './constants/currencies';
 function PortfolioManager() {
   const {
     portfolio,
-    setPortfolio,
+    updatePortfolio,
     savePortfolio,
     exportPortfolio,
     importPortfolio,
     saveStatus,
-    setSaveStatus,
     isLoading
   } = usePortfolioData();
 
@@ -109,7 +108,7 @@ function PortfolioManager() {
   };
 
   // Account handlers
-  const handleAddAccount = (accountData) => {
+  const handleAddAccount = async (accountData) => {
     try {
       const newAccounts = AccountController.createAccount(
         accountData,
@@ -119,15 +118,15 @@ function PortfolioManager() {
         ...portfolio.toJSON(),
         accounts: newAccounts
       });
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
+      updatePortfolio(updatedPortfolio);
+      await savePortfolio(updatedPortfolio);
       setShowAddAccount(false);
     } catch (error) {
       alert(error.message);
     }
   };
 
-  const handleSaveAccountEdit = (accountId, field, value) => {
+  const handleSaveAccountEdit = async (accountId, field, value) => {
     const updatedAccounts = AccountController.updateAccount(
       accountId,
       field,
@@ -138,11 +137,11 @@ function PortfolioManager() {
       ...portfolio.toJSON(),
       accounts: updatedAccounts
     });
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
   };
 
-  const handleDeleteAccount = (accountId) => {
+  const handleDeleteAccount = async (accountId) => {
     const { accounts, transferRules } = AccountController.deleteAccount(
       accountId,
       portfolio.accounts,
@@ -153,11 +152,11 @@ function PortfolioManager() {
       accounts,
       transferRules
     });
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
   };
 
-  const handleAddActualValue = (accountId, year, value) => {
+  const handleAddActualValue = async (accountId, year, value) => {
     const updatedActualValues = {
       ...portfolio.actualValues,
       [accountId]: {
@@ -169,27 +168,27 @@ function PortfolioManager() {
       ...portfolio.toJSON(),
       actualValues: updatedActualValues
     });
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
   };
 
   // Transfer rule handlers
-  const handleAddRule = (ruleData) => {
+  const handleAddRule = async (ruleData) => {
     try {
       const newRules = RuleController.createRule(ruleData, portfolio.transferRules);
       const updatedPortfolio = new Portfolio({
         ...portfolio.toJSON(),
         transferRules: newRules
       });
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
+      updatePortfolio(updatedPortfolio);
+      await savePortfolio(updatedPortfolio);
       setShowAddRule(false);
     } catch (error) {
       alert(error.message);
     }
   };
 
-  const handleSaveRuleEdit = (ruleData) => {
+  const handleSaveRuleEdit = async (ruleData) => {
     try {
       const newRules = RuleController.updateRule(
         editingRuleId,
@@ -200,26 +199,23 @@ function PortfolioManager() {
         ...portfolio.toJSON(),
         transferRules: newRules
       });
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
+      updatePortfolio(updatedPortfolio);
+      await savePortfolio(updatedPortfolio);
       setEditingRuleId(null);
     } catch (error) {
       alert(error.message);
     }
   };
 
-  const handleDeleteRule = (ruleId) => {
+  const handleDeleteRule = async (ruleId) => {
     const updatedRules = portfolio.transferRules.filter(rule => rule.id !== ruleId);
     const updatedPortfolio = new Portfolio({
       ...portfolio.toJSON(),
       transferRules: updatedRules
     });
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
   };
-
-  console.log('Account yield rates:', portfolio.accounts.map(a => ({ name: a.name, yield: a.getYieldRate() })));
-  console.log('Default investment yield:', portfolio.defaultInvestmentYield);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
@@ -263,7 +259,7 @@ function PortfolioManager() {
                     ...portfolio.toJSON(),
                     baseCurrency: e.target.value
                   });
-                  setPortfolio(updated);
+                  updatePortfolio(updated);
                   savePortfolio(updated);
                 }}
                 className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
@@ -316,7 +312,7 @@ function PortfolioManager() {
               ...portfolio.toJSON(),
               ...updates
             });
-            setPortfolio(updated);
+            updatePortfolio(updated);
             savePortfolio(updated);
           }}
         />
@@ -481,8 +477,9 @@ function PortfolioManager() {
                 <AccountItem
                   account={account}
                   isEditing={editingAccountId === account.id}
-                  onEdit={() => setEditingAccountId(account.id)}
+                  onStartEdit={() => setEditingAccountId(account.id)}
                   onDelete={() => handleDeleteAccount(account.id)}
+                  onFinishEdit={() => setEditingAccountId(null)}
                   onSaveEdit={handleSaveAccountEdit}
                   onAddActualValue={handleAddActualValue}
                   showActualValueInput={showActualInput === account.id}

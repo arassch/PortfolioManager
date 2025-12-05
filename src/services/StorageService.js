@@ -1,41 +1,20 @@
+import { Portfolio } from '../models/Portfolio';
 /**
  * StorageService - Handles all data persistence
- * Prefers window.storage (Claude) but falls back to localStorage
+ * Uses PostgreSQL API via Express backend
  */
-const STORAGE_KEY = 'portfolio_data';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const USER_ID = 1; // For now, hardcoded. Later use auth system.
 
-const storageAvailable = 
-  typeof window?.storage?.get === 'function' && 
-  typeof window?.storage?.set === 'function';
-
 class StorageService {
-  async get(key) {
-    if (storageAvailable) {
-      return window.storage.get(key);
-    } else {
-      const val = localStorage.getItem(key);
-      return val ? { value: val } : null;
-    }
-  }
-
-  async set(key, value) {
-    if (storageAvailable) {
-      return window.storage.set(key, value);
-    } else {
-      localStorage.setItem(key, value);
-      return true;
-    }
-  }
-
   async loadPortfolio() {
     try {
-      const result = await this.get(STORAGE_KEY);
-      if (result && result.value) {
-        return JSON.parse(result.value);
+      const response = await fetch(`${API_URL}/api/portfolio/${USER_ID}`);
+      if (!response.ok) {
+        throw new Error('Failed to load portfolio');
       }
-      return null;
+      const data = await response.json();
+      return new Portfolio(data);
     } catch (error) {
       console.error('Error loading portfolio:', error);
       return null;
@@ -43,41 +22,46 @@ class StorageService {
   }
 
   async savePortfolio(portfolioData) {
+    const query = `${API_URL}/api/portfolio/${USER_ID}`;
     try {
-      await this.set(STORAGE_KEY, JSON.stringify(portfolioData));
-      return true;
-    } catch (error) {
-      console.error('Error saving portfolio:', error);
-      return false;
-    }
-  }
-
-  async loadPortfolioFromAPI() {
-    try {
-      const response = await fetch(`${API_URL}/api/portfolio/${USER_ID}`);
-      if (!response.ok) {
-        throw new Error('Failed to load portfolio');
+      // Pre-flight check: Ensure the data can be stringified without errors.
+      // This catches circular references before they are sent to the server.
+      let body;
+      try {
+        body = JSON.stringify(portfolioData);
+        console.log("Sending data to server:", body);
+      } catch (e) {
+        console.error("Failed to stringify portfolio data. Check for circular references.", portfolioData);
+        throw e;
       }
-      return await response.json();
-    } catch (error) {
-      console.error('Error loading portfolio:', error);
-      return null;
-    }
-  }
 
-  async savePortfolioToAPI(portfolioData) {
-    try {
       const response = await fetch(`${API_URL}/api/portfolio/${USER_ID}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(portfolioData)
+        body: body
       });
       if (!response.ok) {
         throw new Error('Failed to save portfolio');
       }
       return true;
     } catch (error) {
+        console.info('Query with error:', query);
       console.error('Error saving portfolio:', error);
+      return false;
+    }
+  }
+
+  async seedInitialData() {
+    try {
+      const response = await fetch(`${API_URL}/api/seed`);
+      if (!response.ok) {
+        throw new Error('Failed to seed database');
+      }
+      console.log('Database seeded successfully.');
+      return true;
+    } catch (error) {
+      console.error('Error seeding initial data:', error);
+      // Explicitly return false on failure to prevent infinite loops
       return false;
     }
   }
@@ -99,7 +83,7 @@ class StorageService {
       reader.onload = (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          resolve(data);
+          resolve(new Portfolio(data));
         } catch (error) {
           reject(error);
         }

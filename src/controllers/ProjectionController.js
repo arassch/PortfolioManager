@@ -6,6 +6,11 @@ import CurrencyService from '../services/CurrencyService';
 class ProjectionController {
   calculateProjections(portfolio, selectedAccounts, showIndividualAccounts) {
     const data = [];
+
+    if (!portfolio || !portfolio.accounts) {
+      return data;
+    }
+
     const currentYear = new Date().getFullYear();
     
     const accountBalances = {};
