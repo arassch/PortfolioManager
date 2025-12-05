@@ -110,7 +110,7 @@ export function ChartSection({
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 h-[400px]">
+        <div className="lg:col-span-2 h-[530px]">
           <ResponsiveContainer width="100%" height="100%">
             {activeTab === 'growth' ? (
               <LineChart data={projectionData}>
@@ -217,17 +217,17 @@ export function ChartSection({
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white/5 rounded-lg p-4 border border-white/20 h-[220px]">
+          <div className="bg-white/5 rounded-lg p-4 border border-white/20 h-[250px]">
             <h4 className="text-white font-semibold mb-3">Invested vs Cash</h4>
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 8, right: 8, bottom: 32, left: 8 }}>
+              <PieChart margin={{ top: 8, right: 8, bottom: 28, left: 8 }}>
                 <Pie
                   data={investedVsCash}
                   dataKey="value"
                   nameKey="name"
-                  outerRadius={60}
-                  innerRadius={38}
-                  paddingAngle={2}
+                  outerRadius={64}
+                  innerRadius={34}
+                  paddingAngle={1}
                   stroke="#0f172a"
                 >
                   {investedVsCash.map((entry, index) => (
@@ -257,17 +257,17 @@ export function ChartSection({
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white/5 rounded-lg p-4 border border-white/20 h-[220px]">
+          <div className="bg-white/5 rounded-lg p-4 border border-white/20 h-[250px]">
             <h4 className="text-white font-semibold mb-3">Taxed vs Non-Taxed</h4>
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 8, right: 8, bottom: 32, left: 8 }}>
+              <PieChart margin={{ top: 8, right: 8, bottom: 28, left: 8 }}>
                 <Pie
                   data={taxedVsNonTaxed}
                   dataKey="value"
                   nameKey="name"
-                  outerRadius={60}
-                  innerRadius={38}
-                  paddingAngle={2}
+                  outerRadius={64}
+                  innerRadius={34}
+                  paddingAngle={1}
                   stroke="#0f172a"
                 >
                   {taxedVsNonTaxed.map((entry, index) => (
