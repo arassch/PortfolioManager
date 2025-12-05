@@ -84,15 +84,12 @@ class ProjectionController {
         // Apply taxes
         portfolio.accounts.forEach(account => {
           if (account.taxable) {
-            const originalBalance = CurrencyService.convertToBase(
-              account.balance,
-              account.currency,
-              portfolio.baseCurrency
-            );
+            const yearStartBalance = yearStartBalances[account.id];
             const currentBalance = accountBalances[account.id];
 
-            if (currentBalance > originalBalance) {
-              const gain = currentBalance - originalBalance;
+            // Tax only the current year's gains (not cumulative since account creation)
+            if (currentBalance > yearStartBalance) {
+              const gain = currentBalance - yearStartBalance;
               const tax = gain * (portfolio.taxRate / 100);
               accountBalances[account.id] -= tax;
             }
