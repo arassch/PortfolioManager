@@ -297,15 +297,6 @@ app.get('/api/seed', async (req, res) => {
       portfolioId = portfolioRes.rows[0].id;
     }
 
-    // Add a default cash account if a portfolio was created
-    if (portfolioId) {
-      // Use ON CONFLICT to prevent duplicate accounts if seed is run multiple times
-      await client.query(
-        "INSERT INTO accounts (portfolio_id, name, type, balance, currency, taxable) VALUES ($1, 'Cash', 'cash', 10000, 'USD', false)",
-        [portfolioId]
-      );
-    }
-
     await client.query('COMMIT');
     client.release();
     
