@@ -35,22 +35,15 @@ CREATE TABLE accounts (
 CREATE TABLE transfer_rules (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
   frequency VARCHAR(50) NOT NULL, -- 'monthly' or 'annual'
   from_external BOOLEAN DEFAULT false,
-  from_account_id INTEGER REFERENCES accounts(id),
+  from_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+  to_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   external_amount DECIMAL(15,2),
   external_currency VARCHAR(3),
   amount_type VARCHAR(50) NOT NULL, -- 'fixed' or 'earnings'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE transfer_destinations (
-  id SERIAL PRIMARY KEY,
-  rule_id INTEGER NOT NULL REFERENCES transfer_rules(id) ON DELETE CASCADE,
-  to_account_id INTEGER NOT NULL REFERENCES accounts(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE actual_values (

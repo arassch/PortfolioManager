@@ -8,16 +8,15 @@ export class TransferRule {
     this.fromExternal = data.fromExternal || false;
     this.externalAmount = parseFloat(data.externalAmount) || 0;
     this.externalCurrency = data.externalCurrency || 'USD';
+    this.toAccountId = data.toAccountId; 
     this.frequency = data.frequency || 'annual'; // 'annual' or 'monthly'
     this.amountType = data.amountType || 'fixed'; // 'fixed' or 'earnings'
-    this.transfers = data.transfers || []; // array of { toAccountId }
   }
 
   isValid() {
     const hasSource = this.fromAccountId || this.fromExternal;
-    const hasDestination = this.transfers && this.transfers.length > 0;
-    const destinationsValid = this.transfers.every(t => t.toAccountId);
-    return hasSource && hasDestination && destinationsValid;
+    const hasDestination = this.toAccountId;
+    return hasSource && hasDestination;
   }
 
   getAmount() {
@@ -33,7 +32,7 @@ export class TransferRule {
       externalCurrency: this.externalCurrency,
       frequency: this.frequency,
       amountType: this.amountType,
-      transfers: this.transfers
+      toAccountId: this.toAccountId
     };
   }
 }

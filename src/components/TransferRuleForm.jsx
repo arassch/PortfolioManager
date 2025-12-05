@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
-import { FREQUENCIES, AMOUNT_TYPES } from '../constants/currencies';
+import { FREQUENCIES, AMOUNT_TYPES, CURRENCIES } from '../constants/currencies';
 
 const DEFAULT_RULE = {
   fromAccountId: '',
@@ -9,7 +8,7 @@ const DEFAULT_RULE = {
   externalCurrency: 'USD',
   frequency: 'annual',
   amountType: 'fixed',
-  transfers: [{ toAccountId: '' }]
+  toAccountId: '',
 };
 
 export function TransferRuleForm({
@@ -19,38 +18,18 @@ export function TransferRuleForm({
   onCancel,
   baseCurrency = 'USD'
 }) {
-  const [formRule, setFormRule] = useState(rule || DEFAULT_RULE);
+  const [formRule, setFormRule] = useState(rule ? { ...DEFAULT_RULE, ...rule } : DEFAULT_RULE);
 
   useEffect(() => {
     if (rule) {
-      setFormRule(rule);
+      setFormRule({ ...DEFAULT_RULE, ...rule });
+    } else {
+      setFormRule(DEFAULT_RULE);
     }
   }, [rule]);
 
   const handleChange = (field, value) => {
     setFormRule(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleTransferChange = (index, field, value) => {
-    const updatedTransfers = [...formRule.transfers];
-    updatedTransfers[index][field] = value;
-    setFormRule(prev => ({ ...prev, transfers: updatedTransfers }));
-  };
-
-  const addTransfer = () => {
-    setFormRule(prev => ({
-      ...prev,
-      transfers: [...prev.transfers, { toAccountId: '' }]
-    }));
-  };
-
-  const removeTransfer = (index) => {
-    if (formRule.transfers.length > 1) {
-      setFormRule(prev => ({
-        ...prev,
-        transfers: prev.transfers.filter((_, i) => i !== index)
-      }));
-    }
   };
 
   const handleSubmit = () => {
@@ -98,7 +77,9 @@ export function TransferRuleForm({
                   onChange={(e) => handleChange('externalCurrency', e.target.value)}
                   className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
                 >
-                  {/* Import CURRENCIES and add this */}
+                  {CURRENCIES.map(curr => (
+                    <option key={curr} value={curr}>{curr}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -144,38 +125,17 @@ export function TransferRuleForm({
       </div>
 
       <div className="space-y-3 mb-4">
-        <label className="block text-purple-200 text-sm">Transfer To (split equally)</label>
-        {formRule.transfers.map((transfer, index) => (
-          <div key={index} className="flex gap-2 items-center">
-            <select
-              value={transfer.toAccountId}
-              onChange={(e) => handleTransferChange(index, 'toAccountId', e.target.value)}
-              className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-            >
-              <option value="">Select Account</option>
-              {accounts.filter(acc => acc.id !== formRule.fromAccountId).map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.name}</option>
-              ))}
-            </select>
-            {formRule.transfers.length > 1 && (
-              <button
-                onClick={() => removeTransfer(index)}
-                className="p-2 text-red-400 hover:text-red-300"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={addTransfer}
-          className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-all"
+        <label className="block text-purple-200 text-sm">Transfer To</label>
+        <select
+          value={formRule.toAccountId}
+          onChange={(e) => handleChange('toAccountId', e.target.value)}
+          className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
         >
-          + Add Destination
-        </button>
+          <option value="">Select Account</option>
+          {accounts.map(acc => (
+            <option key={acc.id} value={acc.id}>{acc.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="flex gap-2">

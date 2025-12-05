@@ -28,7 +28,7 @@ class AccountController {
     // Clean up transfer rules that reference this account
     const updatedRules = transferRules.filter(rule =>
       rule.fromAccountId !== accountId &&
-      !rule.transfers.some(t => t.toAccountId === accountId)
+      rule.toAccountId !== accountId
     );
     
     return { accounts: updatedAccounts, transferRules: updatedRules };

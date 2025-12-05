@@ -170,15 +170,15 @@ class ProjectionController {
       }
     }
 
-    const amountPerTransfer = availableAmount / rule.transfers.length;
-    rule.transfers.forEach((transfer) => {
-      if (accountBalances[transfer.toAccountId] !== undefined) {
-        if (!rule.fromExternal && rule.fromAccountId) {
-          accountBalances[rule.fromAccountId] -= amountPerTransfer;
-        }
-        accountBalances[transfer.toAccountId] += amountPerTransfer;
-      }
-    });
+    const toAccountId = rule.toAccountId;
+    if (!toAccountId || accountBalances[toAccountId] === undefined) {
+      return;
+    }
+
+    if (!rule.fromExternal && rule.fromAccountId) {
+      accountBalances[rule.fromAccountId] -= availableAmount;
+    }
+    accountBalances[toAccountId] += availableAmount;
   }
 }
 

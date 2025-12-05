@@ -4,6 +4,7 @@ import CurrencyService from '../services/CurrencyService';
 
 export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   const fromAccount = accounts.find(acc => acc.id == rule.fromAccountId);
+  const toAccount = accounts.find(acc => acc.id == rule.toAccountId);
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20">
@@ -30,25 +31,22 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
               </>
             )}
           </h4>
-          <div className="space-y-1">
-            {rule.transfers?.map((transfer, index) => {
-              const toAccount = accounts.find(acc => acc.id == transfer.toAccountId);
-              const splitAmount = rule.amountType === 'earnings'
-                ? 'equal split of earnings'
-                : CurrencyService.formatCurrency(
-                    rule.externalAmount / rule.transfers.length,
-                    rule.fromExternal ? rule.externalCurrency : (fromAccount?.currency || 'USD')
-                  );
-              return (
-                <div key={index} className="text-sm text-purple-200">
-                  → {toAccount ? (
-                    <span className="text-white">{toAccount.name}</span>
-                  ) : (
-                    <span className="text-red-300">Deleted Account</span>
-                  )} <span className="text-blue-300">({splitAmount})</span>
-                </div>
-              );
-            })}
+          <div className="space-y-1 text-sm text-purple-200">
+            → {toAccount ? (
+              <span className="text-white">{toAccount.name}</span>
+            ) : (
+              <span className="text-red-300">Deleted Account</span>
+            )}{' '}
+            {rule.amountType === 'earnings' ? (
+              <span className="text-blue-300">(earnings transfer)</span>
+            ) : (
+              <span className="text-blue-300">
+                ({CurrencyService.formatCurrency(
+                  rule.externalAmount,
+                  rule.fromExternal ? rule.externalCurrency : (fromAccount?.currency || 'USD')
+                )})
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">

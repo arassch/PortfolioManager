@@ -28,12 +28,8 @@ class ValidationService {
       errors.push('Transfer source is required');
     }
     
-    if (!rule.transfers || rule.transfers.length === 0) {
+    if (!rule.toAccountId) {
       errors.push('At least one transfer destination is required');
-    }
-    
-    if (rule.transfers && !rule.transfers.every(t => t.toAccountId)) {
-      errors.push('All transfer destinations must be selected');
     }
     
     if (rule.amountType === 'fixed' && rule.externalAmount <= 0) {

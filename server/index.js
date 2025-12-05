@@ -95,21 +95,21 @@ app.get('/api/portfolio/:userId', async (req, res) => {
       [portfolio.id]
     );
     
-    // Get transfer rules with destinations
+    // Get transfer rules
     const rulesRes = await pool.query(
       'SELECT * FROM transfer_rules WHERE portfolio_id = $1',
       [portfolio.id]
     );
-    
-    const rules = await Promise.all(rulesRes.rows.map(async (rule) => {
-      const destRes = await pool.query(
-        'SELECT to_account_id FROM transfer_destinations WHERE rule_id = $1',
-        [rule.id]
-      );
-      return {
-        ...rule,
-        transfers: destRes.rows.map(d => ({ toAccountId: d.to_account_id }))
-      };
+    const transferRules = rulesRes.rows.map(rule => ({
+      id: rule.id,
+      portfolioId: rule.portfolio_id,
+      fromExternal: rule.from_external,
+      fromAccountId: rule.from_account_id,
+      toAccountId: rule.to_account_id,
+      frequency: rule.frequency,
+      externalAmount: Number(rule.external_amount || 0),
+      externalCurrency: rule.external_currency,
+      amountType: rule.amount_type
     }));
     
     // Get actual values
@@ -134,7 +134,7 @@ app.get('/api/portfolio/:userId', async (req, res) => {
     taxRate: portfolio.tax_rate,
     projectionYears: portfolio.projection_years,
     accounts: accountsRes.rows.map(normalizeAccount),
-    transferRules: rules,
+    transferRules,
     actualValues
   });
   } catch (error) {
@@ -151,6 +151,7 @@ app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
   const { accounts = [], transferRules = [], actualValues = {}, ...portfolioSettings } = req.body;
 
     console.log('Saving portfolio for user: 1', userId);
+    console.log('Portfolio settings:', accounts, transferRules, actualValues, portfolioSettings);
     
     const client = await pool.connect();
     try {
@@ -223,30 +224,21 @@ app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
         const fromAccountId = rule.fromExternal
           ? null
           : (rule.fromAccountId ? accountIdMap.get(String(rule.fromAccountId)) : null);
+        const toAccountId = accountIdMap.get(String(rule.toAccountId));
+        if (!toAccountId) {
+          throw new Error(`Unknown destination account id ${rule.toAccountId}`);
+        }
 
         const ruleRes = await client.query(
-          `INSERT INTO transfer_rules (portfolio_id, name, frequency, from_external, from_account_id, external_amount, external_currency, amount_type)
+          `INSERT INTO transfer_rules (portfolio_id, frequency, from_external, from_account_id, to_account_id, external_amount, external_currency, amount_type)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING id`,
           [
-            portfolioId, rule.name, rule.frequency, rule.fromExternal, fromAccountId,
+            portfolioId, rule.frequency, rule.fromExternal, fromAccountId, toAccountId,
             rule.externalAmount, rule.externalCurrency, rule.amountType
           ]
         );
         const ruleId = ruleRes.rows[0].id;
-
-        // Insert transfer destinations with new account IDs
-        for (const transfer of rule.transfers || []) {
-          const toAccountId = accountIdMap.get(String(transfer.toAccountId));
-          if (!toAccountId) {
-            throw new Error(`Unknown destination account id ${transfer.toAccountId}`);
-          }
-
-          await client.query(
-            'INSERT INTO transfer_destinations (rule_id, to_account_id) VALUES ($1, $2)',
-            [ruleId, toAccountId]
-          );
-        }
       }
 
       // Upsert actual values against the remapped account IDs
