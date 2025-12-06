@@ -129,9 +129,9 @@ export function ChartSection({
                     borderRadius: '8px'
                   }}
                   labelStyle={{ color: '#ffffff' }}
-                  formatter={(value) => [
-                    `${CurrencyService.getSymbol(baseCurrency)}${value.toLocaleString()}`,
-                    ''
+                  formatter={(value, name) => [
+                    `${CurrencyService.getSymbol(baseCurrency)}${value?.toLocaleString() || '0'}`,
+                    name
                   ]}
                 />
                 <Legend />
