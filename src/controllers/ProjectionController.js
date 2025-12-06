@@ -42,14 +42,39 @@ class ProjectionController {
         yearStartBalances[account.id] = accountBalances[account.id];
       });
 
+      // Track transfers applied this year for tooltip/debug purposes
+      const transferTotals = {};
+      const yearNetGains = {};
+      portfolio.accounts.forEach(acc => { yearNetGains[acc.id] = 0; });
+
+      // Accounts whose earnings are sent away (no compounding on balance)
+      const earningsTransferAccounts = new Set(
+        portfolio.transferRules
+          .filter(r => r.amountType === 'earnings' && !r.fromExternal && r.fromAccountId)
+          .map(r => r.fromAccountId)
+      );
+
       // ONLY apply growth if yearIndex > 0 (Year 0 is current snapshot)
       if (yearIndex > 0) {
         // Simulate 12 months of growth
+        const monthStartBalances = { ...accountBalances };
         for (let month = 1; month <= 12; month++) {
+          const monthNetGain = {};
           portfolio.accounts.forEach(account => {
             const rate = account.getYieldRate() || portfolio.defaultInvestmentYield;
             const monthlyRate = rate / 100 / 12;
-            accountBalances[account.id] *= (1 + monthlyRate);
+            // If this account sends earnings away, base gains on start-of-year balance (no compounding)
+            const gainBase = earningsTransferAccounts.has(account.id)
+              ? yearStartBalances[account.id]
+              : accountBalances[account.id];
+            const grossGain = gainBase * monthlyRate;
+            const tax = account.taxable && grossGain > 0
+              ? grossGain * (portfolio.taxRate / 100)
+              : 0;
+            const netGain = grossGain - tax;
+            accountBalances[account.id] += netGain;
+            monthNetGain[account.id] = netGain;
+            yearNetGains[account.id] += netGain;
           });
 
           // Apply monthly transfers
@@ -59,11 +84,17 @@ class ProjectionController {
                 rule,
                 portfolio,
                 accountBalances,
-                yearStartBalances,
-                12,
-                portfolio.baseCurrency
+                monthNetGain,
+                transferTotals,
+                portfolio.baseCurrency,
+                portfolio.taxRate
               );
             }
+          });
+
+          // Update month starting balances after transfers
+          portfolio.accounts.forEach(account => {
+            monthStartBalances[account.id] = accountBalances[account.id];
           });
         }
 
@@ -74,27 +105,14 @@ class ProjectionController {
               rule,
               portfolio,
               accountBalances,
-              yearStartBalances,
-              1,
-              portfolio.baseCurrency
+              yearNetGains,
+              transferTotals,
+              portfolio.baseCurrency,
+              portfolio.taxRate
             );
           }
         });
 
-        // Apply taxes
-        portfolio.accounts.forEach(account => {
-          if (account.taxable) {
-            const yearStartBalance = yearStartBalances[account.id];
-            const currentBalance = accountBalances[account.id];
-
-            // Tax only the current year's gains (not cumulative since account creation)
-            if (currentBalance > yearStartBalance) {
-              const gain = currentBalance - yearStartBalance;
-              const tax = gain * (portfolio.taxRate / 100);
-              accountBalances[account.id] -= tax;
-            }
-          }
-        });
       }
 
       // Calculate totals for this year
@@ -120,6 +138,7 @@ class ProjectionController {
 
         if (showIndividualAccounts) {
           yearData[`account_${account.id}`] = Math.round(value);
+          yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
         }
 
         if (portfolio.actualValues[account.id]?.[yearIndex]) {
@@ -141,7 +160,7 @@ class ProjectionController {
     return data;
   }
 
-  applyTransfer(rule, portfolio, accountBalances, yearStartBalances, divisor, baseCurrency) {
+  applyTransfer(rule, portfolio, accountBalances, periodGrowth, transferTotals, baseCurrency, taxRate) {
     let availableAmount = 0;
 
     if (rule.fromExternal) {
@@ -149,21 +168,20 @@ class ProjectionController {
         rule.externalAmount,
         rule.externalCurrency,
         baseCurrency
-      ) / divisor;
+      );
     } else {
       const fromAccount = portfolio.getAccountById(rule.fromAccountId);
       if (!fromAccount) return;
 
       if (rule.amountType === 'earnings') {
-        const monthlyGrowth = 
-          accountBalances[rule.fromAccountId] - yearStartBalances[rule.fromAccountId];
-        availableAmount = monthlyGrowth / divisor;
+        const growth = periodGrowth[rule.fromAccountId] || 0; // already net of tax
+        availableAmount = growth > 0 ? growth : 0;
       } else {
         availableAmount = CurrencyService.convertToBase(
           rule.externalAmount || 0,
           fromAccount.currency,
           baseCurrency
-        ) / divisor;
+        );
       }
     }
 
@@ -174,8 +192,10 @@ class ProjectionController {
 
     if (!rule.fromExternal && rule.fromAccountId) {
       accountBalances[rule.fromAccountId] -= availableAmount;
+      transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - availableAmount;
     }
     accountBalances[toAccountId] += availableAmount;
+    transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + availableAmount;
   }
 }
 

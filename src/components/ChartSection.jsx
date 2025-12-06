@@ -15,10 +15,123 @@ export function ChartSection({
   showIndividualAccounts,
   activeTab,
   baseCurrency,
+  defaultInvestmentYield,
+  taxRate,
   onTabChange,
   onToggleAccount,
   onToggleIndividualAccounts
 }) {
+  const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
+  const accountMap = accounts.reduce((map, acc) => {
+    map[acc.id] = acc;
+    return map;
+  }, {});
+
+  const buildAccountBreakdown = (current, prev) => {
+    return accounts
+      .filter((acc) => selectedAccounts[acc.id])
+      .map((acc) => {
+        const rate =
+          (typeof acc.getYieldRate === 'function' ? acc.getYieldRate() : null) ??
+          acc.interestRate ??
+          acc.yield ??
+          defaultInvestmentYield;
+
+        const prevVal = prev ? prev[`account_${acc.id}`] : null;
+        const currVal = current ? current[`account_${acc.id}`] : null;
+        if (prevVal == null || currVal == null) return null;
+
+        const gross = prevVal * (1 + rate / 100);
+        const tax = acc.taxable && gross > prevVal ? (gross - prevVal) * (taxRate / 100) : 0;
+        const netAfterTax = gross - tax;
+        const transferNet = current[`account_${acc.id}_transfers`] || 0;
+        const calcParts = [
+          `prev ${formatCurrency(prevVal)}`,
+          `x ${rate}%`,
+          tax ? `- tax ${formatCurrency(tax)}` : null,
+          transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
+          `= ${formatCurrency(currVal)}`
+        ].filter(Boolean);
+        const calc = calcParts.join(' ');
+
+        return {
+          name: acc.name,
+          current: currVal,
+          calc
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const renderGrowthTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const current = payload[0].payload;
+    const idx = projectionData.findIndex((p) => p.label === label);
+    const prev = idx > 0 ? projectionData[idx - 1] : null;
+    const prevValue = prev?.projected ?? 0;
+    const delta = current.projected - prevValue;
+    const pct = prevValue ? `${((delta / prevValue) * 100).toFixed(1)}%` : 'n/a';
+
+    return (
+      <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
+        <div className="font-semibold">{label}</div>
+        <div className="mt-1 space-y-1">
+          <div>Projected: {formatCurrency(current.projected)}</div>
+          {prev && (
+            <div className="text-xs text-purple-200">
+              Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
+            </div>
+          )}
+          {current.actual ? (
+            <div className="text-green-300">Actual: {formatCurrency(current.actual)}</div>
+          ) : null}
+          {showIndividualAccounts && (
+            <div className="pt-1 text-xs text-slate-200 space-y-1">
+              {buildAccountBreakdown(current, prev).map((item) => (
+                <div key={item.name}>
+                  <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderEarningsTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const current = payload[0].payload;
+    const idx = projectionData.findIndex((p) => p.label === label);
+    const prev = idx > 0 ? projectionData[idx - 1] : null;
+    const prevProjected = prev?.projected ?? 0;
+    const currProjected = current.projected ?? 0;
+    const delta = currProjected - prevProjected;
+    const pct = prevProjected ? `${((delta / prevProjected) * 100).toFixed(1)}%` : 'n/a';
+
+    return (
+      <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
+        <div className="font-semibold">{label}</div>
+        <div className="mt-1 space-y-1">
+          <div>Earnings: {formatCurrency(current.totalYield || 0)}</div>
+          {prev && (
+            <div className="text-xs text-purple-200">
+              From {formatCurrency(prevProjected)} → {formatCurrency(currProjected)} | Δ {formatCurrency(delta)} ({pct})
+            </div>
+          )}
+          {showIndividualAccounts && (
+            <div className="pt-1 text-xs text-slate-200 space-y-1">
+              {buildAccountBreakdown(current, prev).map((item) => (
+                <div key={item.name}>
+                  <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
   const totals = accounts.reduce(
     (acc, account) => {
       const value = CurrencyService.convertToBase(
@@ -122,18 +235,7 @@ export function ChartSection({
                     `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
                   }
                 />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e1b4b',
-                    border: '1px solid #ffffff30',
-                    borderRadius: '8px'
-                  }}
-                  labelStyle={{ color: '#ffffff' }}
-                  formatter={(value, name) => [
-                    `${CurrencyService.getSymbol(baseCurrency)}${value?.toLocaleString() || '0'}`,
-                    name
-                  ]}
-                />
+                <Tooltip content={renderGrowthTooltip} />
                 <Legend />
                 <Line
                   type="monotone"
@@ -178,18 +280,7 @@ export function ChartSection({
                     `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
                   }
                 />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e1b4b',
-                    border: '1px solid #ffffff30',
-                    borderRadius: '8px'
-                  }}
-                  labelStyle={{ color: '#ffffff' }}
-                  formatter={(value, name) => [
-                    `${CurrencyService.getSymbol(baseCurrency)}${value?.toLocaleString() || '0'}`,
-                    name
-                  ]}
-                />
+                <Tooltip content={renderEarningsTooltip} />
                 <Legend />
                 {showIndividualAccounts ? (
                   accounts

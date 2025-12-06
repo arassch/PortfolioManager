@@ -328,6 +328,8 @@ function PortfolioManager() {
           onTabChange={setActiveTab}
           onToggleAccount={toggleAccountSelection}
           onToggleIndividualAccounts={setShowIndividualAccounts}
+          defaultInvestmentYield={portfolio.defaultInvestmentYield}
+          taxRate={portfolio.taxRate}
         />
 
         {/* Accounts List */}
