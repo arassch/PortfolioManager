@@ -1,5 +1,6 @@
 # dependencies
-/node_modules/
+/client/node_modules/
+/server/node_modules/
 
 # build output
 /dist/
@@ -7,9 +8,9 @@
 /build/
 
 # env / secrets
-.env
-.env.local
-.env.*.local
+/server/.env
+/server/.env.local
+/server/.env.*.local
 
 # editor / OS
 .DS_Store

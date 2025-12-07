@@ -1,5 +1,5 @@
--- Connect as sara to portfolio_manager database first
--- psql -U sara -d portfolio_manager -f schema.sql
+-- Connect as username to portfolio_manager database first
+-- psql -U username -d portfolio_manager -f schema.sql
 
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
