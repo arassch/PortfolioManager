@@ -29,12 +29,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Custom CORS headers for all responses
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
-  next();
-});
-
 // Parse JSON bodies (for POST, etc.)
 app.use(express.json({
   // Add an error handler directly to the JSON parser middleware
