@@ -14,7 +14,7 @@ Simple portfolio projection tool with a React (Vite) frontend and an Express + P
    - Apply schema: `psql -U <db_user> -d portfolio_manager -f database/schema.sql`
 
 ## Run (two terminals)
-- Backend API: `cd server && npm run dev` (or `npm start` if you prefer plain node)
+- Backend API: `cd server && npm run dev` (or `npm run start` if you prefer plain node)
 - Frontend: `cd client && npm run dev` (Vite will print the local URL)
 
 ## Optional
