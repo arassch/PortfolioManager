@@ -7,7 +7,10 @@ Simple portfolio projection tool with a React (Vite) frontend and an Express + P
    - Frontend: `cd client && npm install`
    - Backend: `cd server && npm install`
 2) Configure environment
-   - Backend: create `server/.env` with your DB creds (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`, optional `PORT` for the API; defaults to 5001).
+   - Backend: create `server/.env` with:
+     - DB: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT` (or `DATABASE_URL`)
+     - API: `PORT` (default 5001), `ALLOWED_ORIGINS` (comma-separated list, e.g. `http://localhost:5173`)
+     - Auth: `JWT_SECRET` (strong random), optional `JWT_TTL` (default `10m`), optional `ALLOW_SEED` (`true` only in local if you want `/api/seed`), optional `SEED_PASSWORD` for the seeded user
    - Frontend: set `VITE_API_URL` if your API is not `http://localhost:5001`.
 3) Provision database
    - Create DB/user as needed (example): `createuser portfolio_user --pwprompt`, `createdb portfolio_manager -O portfolio_user`
@@ -18,4 +21,4 @@ Simple portfolio projection tool with a React (Vite) frontend and an Express + P
 - Frontend: `cd client && npm run dev` (Vite will print the local URL)
 
 ## Optional
-- Seed a test user/portfolio: `curl http://localhost:5001/api/seed`
+- Seed a test user/portfolio (local only; requires `ALLOW_SEED=true`): `curl http://localhost:5001/api/seed`

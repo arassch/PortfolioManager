@@ -2,17 +2,30 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pkg from 'pg';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const { Pool } = pkg;
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5001;
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+const ACCESS_TOKEN_TTL = process.env.JWT_TTL || '10m'; // short-lived
+const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.warn('WARNING: JWT_SECRET is not set. Set a strong secret in server/.env for production.');
+}
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Add your frontend origins
-  credentials: true,
+  origin: allowedOrigins,
+  credentials: true
 }));
 
 // Custom CORS headers for all responses
@@ -25,7 +38,6 @@ app.use((req, res, next) => {
 app.use(express.json({
   // Add an error handler directly to the JSON parser middleware
   verify: (req, res, buf, encoding) => {
-    console.log('Verifying JSON body...');
     try {
       JSON.parse(buf);
     } catch (e) {
@@ -35,22 +47,106 @@ app.use(express.json({
     }
   }
 }));
+// Enable cookie parsing for optional httpOnly auth cookie usage
+app.use((req, _res, next) => {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return next();
+  req.cookies = Object.fromEntries(
+    cookieHeader.split(';').map(c => c.trim().split('=').map(decodeURIComponent))
+  );
+  next();
+});
 
 
-// Configure PostgreSQL connection
-// const pool = new Pool({
-//   user: process.env.DB_USER || 'portfolio_user',
-//   password: process.env.DB_PASSWORD,
-//   host: process.env.DB_HOST || 'localhost',
-//   port: process.env.DB_PORT || 5432,
-//   database: process.env.DB_NAME || 'portfolio_manager',
-// });
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  user: process.env.DB_USER || 'portfolio_user',
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'portfolio_manager',
   ssl: process.env.NODE_ENV === "production"
     ? { rejectUnauthorized: false }
     : false,
 });
+
+const refreshStore = new Map(); // refreshToken -> { userId, email, exp }
+const blacklistedAccess = new Set(); // jti strings
+
+const makeCsrfToken = () => crypto.randomBytes(16).toString('hex');
+const makeRefreshToken = () => crypto.randomBytes(32).toString('hex');
+const makeJti = () => crypto.randomBytes(12).toString('hex');
+
+const setCookies = (res, { accessToken, refreshToken, csrfToken }) => {
+  const secure = process.env.NODE_ENV === 'production';
+  if (accessToken) {
+    res.cookie('pm_access', accessToken, {
+      httpOnly: true,
+      secure,
+      sameSite: secure ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60, // 1 hour max for cookie; token TTL controls validity
+    });
+  }
+  if (refreshToken) {
+    res.cookie('pm_refresh', refreshToken, {
+      httpOnly: true,
+      secure,
+      sameSite: secure ? 'none' : 'lax',
+      maxAge: REFRESH_TOKEN_TTL_MS,
+      path: '/api/auth',
+    });
+  }
+  if (csrfToken) {
+    res.cookie('pm_csrf', csrfToken, {
+      httpOnly: false,
+      secure,
+      sameSite: secure ? 'none' : 'lax',
+      maxAge: REFRESH_TOKEN_TTL_MS,
+    });
+  }
+};
+
+const clearAuthCookies = (res) => {
+  const secure = process.env.NODE_ENV === 'production';
+  ['pm_access', 'pm_refresh', 'pm_csrf'].forEach(name => {
+    res.cookie(name, '', { httpOnly: name !== 'pm_csrf', secure, sameSite: secure ? 'none' : 'lax', expires: new Date(0) });
+  });
+};
+
+const signAccessToken = (user) => {
+  const jti = makeJti();
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    JWT_SECRET || 'dev-secret',
+    { expiresIn: ACCESS_TOKEN_TTL, jwtid: jti }
+  );
+  return { token, jti };
+};
+
+const authenticate = (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const cookieToken = req.cookies?.pm_access;
+  const token = bearerToken || cookieToken;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: missing token' });
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (blacklistedAccess.has(payload.jti)) {
+      return res.status(401).json({ error: 'Unauthorized: token revoked' });
+    }
+    req.userId = payload.userId;
+    req.userEmail = payload.email;
+    req.jti = payload.jti;
+    next();
+  } catch (err) {
+    console.error('Invalid token', err);
+    return res.status(401).json({ error: 'Unauthorized: invalid token' });
+  }
+};
 
 const normalizeAccount = (row) => ({
   id: row.id,
@@ -78,10 +174,144 @@ const asyncHandler = fn => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+const requireCsrf = (req, res, next) => {
+  const cookieToken = req.cookies?.pm_csrf;
+  const headerToken = req.headers['x-csrf-token'];
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    return res.status(403).json({ error: 'CSRF token missing or invalid' });
+  }
+  next();
+};
+
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 20;
+const isRateLimited = (key) => {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key) || { count: 0, reset: now + RATE_LIMIT_WINDOW_MS };
+  if (entry.reset < now) {
+    rateLimitStore.delete(key);
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return true;
+  entry.count += 1;
+  rateLimitStore.set(key, entry);
+  return false;
+};
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isStrongPassword = (pwd = '') => pwd.length >= 8 && /[A-Za-z]/.test(pwd) && /\d/.test(pwd);
+
+// Auth routes
+app.post('/api/auth/register', asyncHandler(async (req, res) => {
+  const { email, password } = req.body || {};
+  const key = `reg:${req.ip}`;
+  if (isRateLimited(key)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include letters and numbers' });
+  }
+
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length > 0) {
+    return res.status(409).json({ error: 'Email already in use' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const userRes = await pool.query(
+    'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+    [email, passwordHash]
+  );
+  const user = userRes.rows[0];
+  const { token: accessToken, jti } = signAccessToken(user);
+  const refreshToken = makeRefreshToken();
+  const csrfToken = makeCsrfToken();
+  refreshStore.set(refreshToken, { userId: user.id, email: user.email, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+  setCookies(res, { accessToken, refreshToken, csrfToken });
+  res.json({ user, csrfToken });
+}));
+
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
+  const { email, password } = req.body || {};
+  const key = `login:${req.ip}`;
+  if (isRateLimited(key)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  const userRes = await pool.query(
+    'SELECT id, email, password_hash FROM users WHERE email = $1',
+    [email]
+  );
+  const user = userRes.rows[0];
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const valid = await bcrypt.compare(password, user.password_hash || '');
+  if (!valid) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const { token: accessToken, jti } = signAccessToken(user);
+  const refreshToken = makeRefreshToken();
+  const csrfToken = makeCsrfToken();
+  refreshStore.set(refreshToken, { userId: user.id, email: user.email, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+  setCookies(res, { accessToken, refreshToken, csrfToken });
+  res.json({ user: { id: user.id, email: user.email }, csrfToken });
+}));
+
+app.post('/api/auth/refresh', asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies?.pm_refresh;
+  if (!refreshToken) {
+    return res.status(401).json({ error: 'Missing refresh token' });
+  }
+  const entry = refreshStore.get(refreshToken);
+  if (!entry || entry.exp < Date.now()) {
+    refreshStore.delete(refreshToken);
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+  // rotate refresh token
+  refreshStore.delete(refreshToken);
+  const newRefresh = makeRefreshToken();
+  refreshStore.set(newRefresh, { ...entry, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+
+  const { token: accessToken, jti } = signAccessToken({ id: entry.userId, email: entry.email });
+  const csrfToken = makeCsrfToken();
+  setCookies(res, { accessToken, refreshToken: newRefresh, csrfToken });
+  res.json({ user: { id: entry.userId, email: entry.email }, csrfToken });
+}));
+
+app.post('/api/auth/logout', asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies?.pm_refresh;
+  if (refreshToken) {
+    refreshStore.delete(refreshToken);
+  }
+  if (req.jti) {
+    blacklistedAccess.add(req.jti);
+  }
+  clearAuthCookies(res);
+  res.json({ success: true });
+}));
+
 // Routes
-app.get('/api/portfolio/:userId', async (req, res) => {
+app.get('/api/portfolio', authenticate, async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.userId;
     
     // Get portfolio
     const portfolioRes = await pool.query(
@@ -152,29 +382,25 @@ app.get('/api/portfolio/:userId', async (req, res) => {
   }
 });
 
-app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
-  const { userId } = req.params;
+app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, res, next) => {
+  const userId = req.userId;
   const { accounts = [], transferRules = [], actualValues = {}, ...portfolioSettings } = req.body;
 
-    console.log('Saving portfolio for user: 1', userId);
     console.log('Portfolio settings:', accounts, transferRules, actualValues, portfolioSettings);
     
     const client = await pool.connect();
     try {
-    console.log('Saving portfolio for user: 2', userId);
       await client.query('BEGIN');
 
-      console.log('Saving portfolio for user: 3', userId);
-
-      // Ensure user exists (placeholder email for now)
-      const fallbackEmail = `user-${userId}@example.com`;
-      await client.query(
-        'INSERT INTO users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email',
-        [userId, portfolioSettings.userEmail || fallbackEmail]
+      // Ensure user exists
+      const userCheck = await client.query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
       );
+      if (userCheck.rows.length === 0) {
+        throw new Error('User not found');
+      }
       
-    console.log('Saving portfolio for user: 4', userId);
-
       // Upsert portfolio
       const portfolioRes = await client.query(
         `INSERT INTO portfolios (user_id, base_currency, default_investment_yield, tax_rate, projection_years)
@@ -194,18 +420,13 @@ app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
           portfolioSettings.projectionYears,
         ]
       );
-    console.log('Saving portfolio for user: 5', userId);
       const portfolioId = portfolioRes.rows[0].id;
-    console.log('Saving portfolio for user: 6', userId);
 
       // Clear old data
       await client.query('DELETE FROM transfer_rules WHERE portfolio_id = $1', [portfolioId]);
-    console.log('Saving portfolio for user: 7', userId);
       // Also delete actual_values linked to the accounts being deleted
       await client.query('DELETE FROM actual_values WHERE account_id IN (SELECT id FROM accounts WHERE portfolio_id = $1)', [portfolioId]);
-    console.log('Saving portfolio for user: 8', userId);
       await client.query('DELETE FROM accounts WHERE portfolio_id = $1', [portfolioId]);
-    console.log('Saving portfolio for user: 9', userId);
 
       // Insert accounts and get their new IDs
       const accountIdMap = new Map();
@@ -223,7 +444,6 @@ app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
         // Map old temporary ID to new database ID
         accountIdMap.set(String(account.id), accountRes.rows[0].id);
       }
-    console.log('Saving portfolio for user: 10', userId);
 
       // Insert transfer rules with new account IDs
       for (const rule of transferRules) {
@@ -278,14 +498,19 @@ app.post('/api/portfolio/:userId', asyncHandler(async (req, res, next) => {
 
 // GET /api/seed -> create table if needed + ensure row id=1 exists
 app.get('/api/seed', async (req, res) => {
+  if (process.env.ALLOW_SEED !== 'true') {
+    return res.status(403).json({ error: 'Seeding disabled' });
+  }
   try {
 
     const client = await pool.connect();
     await client.query('BEGIN');
 
     // Create user if doesn't exist
+    const seedPasswordHash = await bcrypt.hash(process.env.SEED_PASSWORD || 'password123', 10);
     await client.query(
-      "INSERT INTO users (id, email) VALUES (1, 'test@example.com') ON CONFLICT (id) DO NOTHING"
+      "INSERT INTO users (id, email, password_hash) VALUES (1, 'test@example.com', $1) ON CONFLICT (id) DO NOTHING",
+      [seedPasswordHash]
     );
     
     const userId = 1;
@@ -317,8 +542,11 @@ app.get('/api/seed', async (req, res) => {
 app.use((err, req, res, next) => {
   console.error('--- An error occurred ---');
   console.error(err.stack);
+  // Avoid logging sensitive fields like passwords
   if (req.body) {
-    console.error('Request body that caused error:', JSON.stringify(req.body, null, 2));
+    const safeBody = { ...req.body };
+    if (safeBody.password) safeBody.password = '[redacted]';
+    console.error('Request body that caused error:', JSON.stringify(safeBody, null, 2));
   }
   res.status(500).json({ error: 'An internal server error occurred.', message: err.message });
 });

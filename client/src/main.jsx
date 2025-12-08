@@ -41,6 +41,7 @@ import CurrencyService from './services/CurrencyService';
 // Hooks
 import { usePortfolioData } from './hooks/usePortfolioData';
 import { useProjections } from './hooks/useProjections';
+import { useAuth } from './hooks/useAuth';
 
 // Components
 import { SummaryCard } from './components/SummaryCard';
@@ -54,7 +55,85 @@ import { ProjectionSettings } from './components/ProjectionSettings';
 // Constants
 import { CURRENCIES, CURRENCY_SYMBOLS } from './constants/currencies';
 
-function PortfolioManager() {
+function AuthScreen({ auth }) {
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+    try {
+      if (mode === 'login') {
+        await auth.login(email, password);
+      } else {
+        await auth.register(email, password);
+      }
+    } catch (err) {
+      setLocalError(err.message || 'Authentication failed');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Manager</h1>
+        <p className="text-purple-200 text-center mb-6">
+          {mode === 'login' ? 'Sign in to your account' : 'Create an account to get started'}
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-purple-100 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-purple-100 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+              required
+            />
+          </div>
+
+          {(localError || auth.error) && (
+            <div className="text-red-300 text-sm">{localError || auth.error}</div>
+          )}
+
+          <button
+            type="submit"
+            disabled={auth.isLoading}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
+          >
+            {auth.isLoading ? 'Working...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-4 text-center text-sm text-purple-100">
+          {mode === 'login' ? (
+            <button className="underline" onClick={() => setMode('register')}>
+              Need an account? Sign up
+            </button>
+          ) : (
+            <button className="underline" onClick={() => setMode('login')}>
+              Already have an account? Sign in
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioManager({ auth }) {
   const {
     portfolio,
     updatePortfolio,
@@ -63,7 +142,7 @@ function PortfolioManager() {
     importPortfolio,
     saveStatus,
     isLoading
-  } = usePortfolioData();
+  } = usePortfolioData(!!auth?.user);
 
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState(null);
@@ -220,6 +299,19 @@ function PortfolioManager() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
+        <div className="flex justify-end items-center mb-4 gap-3 text-purple-100">
+          {auth?.user?.email && (
+            <span className="text-sm bg-white/10 px-3 py-1 rounded-full border border-white/20">
+              Signed in as {auth.user.email}
+            </span>
+          )}
+          <button
+            onClick={auth?.logout}
+            className="text-sm px-3 py-1 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition"
+          >
+            Logout
+          </button>
+        </div>
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
             <TrendingUp className="w-10 h-10" />
@@ -442,12 +534,22 @@ function PortfolioManager() {
   );
 }
 
+function App() {
+  const auth = useAuth();
+
+  if (!auth.user) {
+    return <AuthScreen auth={auth} />;
+  }
+
+  return <PortfolioManager auth={auth} />;
+}
+
 // Mount the app (entry behavior)
 const rootEl = document.getElementById('root');
 if (rootEl) {
   createRoot(rootEl).render(
     <React.StrictMode>
-      <PortfolioManager />
+      <App />
     </React.StrictMode>
   );
 }

@@ -5,7 +5,7 @@ import StorageService from '../services/StorageService';
 /**
  * usePortfolioData - Manages portfolio state and persistence
  */
-export function usePortfolioData() {
+export function usePortfolioData(isAuthenticated) {
   const [portfolio, setPortfolio] = useState(
     new Portfolio()
   );
@@ -15,13 +15,20 @@ export function usePortfolioData() {
   // Load portfolio on mount
   useEffect(() => {
     const initialize = async () => {
-      await StorageService.seedInitialData(); // Ensure data exists
       await loadPortfolio(); // Then load it
     };
-    initialize();
-  }, []);
+    if (isAuthenticated) {
+      initialize();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const loadPortfolio = async () => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     const data = await StorageService.loadPortfolio();
     if (data) {

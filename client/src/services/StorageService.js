@@ -1,15 +1,21 @@
 import { Portfolio } from '../models/Portfolio';
+import AuthService from './AuthService';
 /**
  * StorageService - Handles all data persistence
  * Uses PostgreSQL API via Express backend
  */
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const USER_ID = 1; // For now, hardcoded. Later use auth system.
 
 class StorageService {
   async loadPortfolio() {
     try {
-      const response = await fetch(`${API_URL}/api/portfolio/${USER_ID}`);
+      const response = await fetch(`${API_URL}/api/portfolio`, {
+        credentials: 'include'
+      });
+      if (response.status === 404) {
+        // No portfolio yet for this user; return a fresh model
+        return new Portfolio();
+      }
       if (!response.ok) {
         throw new Error('Failed to load portfolio');
       }
@@ -22,10 +28,8 @@ class StorageService {
   }
 
   async savePortfolio(portfolioData) {
-    const query = `${API_URL}/api/portfolio/${USER_ID}`;
+    const query = `${API_URL}/api/portfolio`;
     try {
-      // Pre-flight check: Ensure the data can be stringified without errors.
-      // This catches circular references before they are sent to the server.
       let body;
       try {
         body = JSON.stringify(portfolioData);
@@ -35,9 +39,13 @@ class StorageService {
         throw e;
       }
 
-      const response = await fetch(`${API_URL}/api/portfolio/${USER_ID}`, {
+      const response = await fetch(query, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-csrf-token': AuthService.getCsrfToken() || ''
+        },
+        credentials: 'include',
         body: body
       });
       if (!response.ok) {
@@ -47,21 +55,6 @@ class StorageService {
     } catch (error) {
         console.info('Query with error:', query);
       console.error('Error saving portfolio:', error);
-      return false;
-    }
-  }
-
-  async seedInitialData() {
-    try {
-      const response = await fetch(`${API_URL}/api/seed`);
-      if (!response.ok) {
-        throw new Error('Failed to seed database');
-      }
-      console.log('Database seeded successfully.');
-      return true;
-    } catch (error) {
-      console.error('Error seeding initial data:', error);
-      // Explicitly return false on failure to prevent infinite loops
       return false;
     }
   }
