@@ -11,6 +11,8 @@
 /server/.env
 /server/.env.local
 /server/.env.*.local
+/server/.env_railway
+/client/.env_vercel
 
 # editor / OS
 .DS_Store
