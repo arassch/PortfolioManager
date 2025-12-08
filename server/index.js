@@ -16,7 +16,8 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .map(o => o.trim())
   .filter(Boolean);
 const ACCESS_TOKEN_TTL = process.env.JWT_TTL || '10m'; // short-lived
-const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days sliding
+const REVOKED_JTI_TTL_MS = 1000 * 60 * 60 * 24; // keep blacklisted jti for 24h
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.warn('WARNING: JWT_SECRET is not set. Set a strong secret in server/.env for production.');
@@ -70,12 +71,10 @@ const pool = new Pool({
     : false,
 });
 
-const refreshStore = new Map(); // refreshToken -> { userId, email, exp }
-const blacklistedAccess = new Set(); // jti strings
-
 const makeCsrfToken = () => crypto.randomBytes(16).toString('hex');
 const makeRefreshToken = () => crypto.randomBytes(32).toString('hex');
 const makeJti = () => crypto.randomBytes(12).toString('hex');
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const setCookies = (res, { accessToken, refreshToken, csrfToken }) => {
   const secure = process.env.NODE_ENV === 'production';
@@ -123,7 +122,65 @@ const signAccessToken = (user) => {
   return { token, jti };
 };
 
-const authenticate = (req, res, next) => {
+const saveRefreshToken = async (token, userId, familyId) => {
+  const tokenHash = hashToken(token);
+  await pool.query(
+    `INSERT INTO refresh_tokens (token_hash, user_id, expires_at, family_id)
+     VALUES ($1, $2, $3, $4)`,
+    [tokenHash, userId, new Date(Date.now() + REFRESH_TOKEN_TTL_MS), familyId]
+  );
+  return tokenHash;
+};
+
+const rotateRefreshToken = async (oldHash, newToken, familyId, userId) => {
+  const newHash = hashToken(newToken);
+  await pool.query('UPDATE refresh_tokens SET revoked = TRUE, replaced_by = $2 WHERE token_hash = $1', [oldHash, newHash]);
+  await pool.query(
+    `INSERT INTO refresh_tokens (token_hash, user_id, expires_at, family_id)
+     VALUES ($1, $2, $3, $4)`,
+    [newHash, userId, new Date(Date.now() + REFRESH_TOKEN_TTL_MS), familyId]
+  );
+  return newHash;
+};
+
+const findRefreshToken = async (token) => {
+  const tokenHash = hashToken(token);
+  const res = await pool.query(
+    `SELECT rt.token_hash, rt.user_id, rt.expires_at, rt.revoked, rt.family_id, u.email
+     FROM refresh_tokens rt
+     JOIN users u ON u.id = rt.user_id
+     WHERE rt.token_hash = $1`,
+    [tokenHash]
+  );
+  return res.rows[0] ? { ...res.rows[0], tokenHash } : null;
+};
+
+const deleteRefreshToken = async (token) => {
+  const tokenHash = hashToken(token);
+  await pool.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
+};
+
+const revokeRefreshToken = async (token) => {
+  const tokenHash = hashToken(token);
+  await pool.query('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [tokenHash]);
+};
+
+const blacklistJti = async (jti) => {
+  if (!jti) return;
+  await pool.query(
+    `INSERT INTO revoked_jti (jti, expires_at) VALUES ($1, TO_TIMESTAMP($2/1000))
+     ON CONFLICT (jti) DO NOTHING`,
+    [jti, Date.now() + REVOKED_JTI_TTL_MS]
+  );
+};
+
+const isJtiRevoked = async (jti) => {
+  if (!jti) return false;
+  const res = await pool.query('SELECT 1 FROM revoked_jti WHERE jti = $1 AND expires_at > NOW()', [jti]);
+  return res.rowCount > 0;
+};
+
+const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   const cookieToken = req.cookies?.pm_access;
@@ -135,7 +192,7 @@ const authenticate = (req, res, next) => {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    if (blacklistedAccess.has(payload.jti)) {
+    if (await isJtiRevoked(payload.jti)) {
       return res.status(401).json({ error: 'Unauthorized: token revoked' });
     }
     req.userId = payload.userId;
@@ -234,7 +291,8 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   const { token: accessToken, jti } = signAccessToken(user);
   const refreshToken = makeRefreshToken();
   const csrfToken = makeCsrfToken();
-  refreshStore.set(refreshToken, { userId: user.id, email: user.email, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+  const familyId = makeJti();
+  await saveRefreshToken(refreshToken, user.id, familyId);
   setCookies(res, { accessToken, refreshToken, csrfToken });
   res.json({ user, csrfToken });
 }));
@@ -270,7 +328,8 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const { token: accessToken, jti } = signAccessToken(user);
   const refreshToken = makeRefreshToken();
   const csrfToken = makeCsrfToken();
-  refreshStore.set(refreshToken, { userId: user.id, email: user.email, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+  const familyId = makeJti();
+  await saveRefreshToken(refreshToken, user.id, familyId);
   setCookies(res, { accessToken, refreshToken, csrfToken });
   res.json({ user: { id: user.id, email: user.email }, csrfToken });
 }));
@@ -280,29 +339,38 @@ app.post('/api/auth/refresh', asyncHandler(async (req, res) => {
   if (!refreshToken) {
     return res.status(401).json({ error: 'Missing refresh token' });
   }
-  const entry = refreshStore.get(refreshToken);
-  if (!entry || entry.exp < Date.now()) {
-    refreshStore.delete(refreshToken);
+  const stored = await findRefreshToken(refreshToken);
+  if (!stored || stored.revoked) {
+    // Possible reuse; clear cookies and force logout
+    if (stored && stored.family_id) {
+      await pool.query('UPDATE refresh_tokens SET revoked = TRUE WHERE family_id = $1', [stored.family_id]);
+    }
+    await blacklistJti(req.jti);
+    clearAuthCookies(res);
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
-  // rotate refresh token
-  refreshStore.delete(refreshToken);
-  const newRefresh = makeRefreshToken();
-  refreshStore.set(newRefresh, { ...entry, exp: Date.now() + REFRESH_TOKEN_TTL_MS });
+  if (new Date(stored.expires_at).getTime() < Date.now()) {
+    await deleteRefreshToken(refreshToken);
+    clearAuthCookies(res);
+    return res.status(401).json({ error: 'Refresh token expired' });
+  }
 
-  const { token: accessToken, jti } = signAccessToken({ id: entry.userId, email: entry.email });
+  const { token: accessToken, jti } = signAccessToken({ id: stored.user_id, email: stored.email || '' });
+  const newRefresh = makeRefreshToken();
   const csrfToken = makeCsrfToken();
+
+  await rotateRefreshToken(stored.tokenHash, newRefresh, stored.family_id, stored.user_id);
   setCookies(res, { accessToken, refreshToken: newRefresh, csrfToken });
-  res.json({ user: { id: entry.userId, email: entry.email }, csrfToken });
+  res.json({ user: { id: stored.user_id, email: stored.email || '' }, csrfToken });
 }));
 
-app.post('/api/auth/logout', asyncHandler(async (req, res) => {
+app.post('/api/auth/logout', authenticate, requireCsrf, asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.pm_refresh;
   if (refreshToken) {
-    refreshStore.delete(refreshToken);
+    await revokeRefreshToken(refreshToken);
   }
   if (req.jti) {
-    blacklistedAccess.add(req.jti);
+    await blacklistJti(req.jti);
   }
   clearAuthCookies(res);
   res.json({ success: true });

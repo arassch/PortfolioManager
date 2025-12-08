@@ -20,9 +20,13 @@ const writeSession = (session) => {
 };
 
 const request = async (path, body) => {
+  const csrf = getCsrfToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'x-csrf-token': csrf } : {})
+    },
     credentials: 'include',
     body: JSON.stringify(body)
   });

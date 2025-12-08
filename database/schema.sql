@@ -8,6 +8,24 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE refresh_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  family_id TEXT,
+  revoked BOOLEAN DEFAULT FALSE,
+  replaced_by TEXT,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_family ON refresh_tokens(family_id);
+
+CREATE TABLE revoked_jti (
+  jti TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE portfolios (
   id SERIAL PRIMARY KEY,
   user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
