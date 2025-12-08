@@ -7,11 +7,27 @@ import AuthService from './AuthService';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 class StorageService {
+  async requestWithRefresh(path, options = {}, allowRetry = true) {
+    const res = await fetch(`${API_URL}${path}`, {
+      credentials: 'include',
+      ...options
+    });
+
+    if (res.status === 401 && allowRetry) {
+      try {
+        await AuthService.refresh();
+        return this.requestWithRefresh(path, options, false);
+      } catch (err) {
+        throw new Error('Unauthorized');
+      }
+    }
+
+    return res;
+  }
+
   async loadPortfolio() {
     try {
-      const response = await fetch(`${API_URL}/api/portfolio`, {
-        credentials: 'include'
-      });
+      const response = await this.requestWithRefresh('/api/portfolio');
       if (response.status === 404) {
         // No portfolio yet for this user; return a fresh model
         return new Portfolio();
@@ -39,13 +55,12 @@ class StorageService {
         throw e;
       }
 
-      const response = await fetch(query, {
+      const response = await this.requestWithRefresh('/api/portfolio', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'x-csrf-token': AuthService.getCsrfToken() || ''
         },
-        credentials: 'include',
         body: body
       });
       if (!response.ok) {

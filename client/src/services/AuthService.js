@@ -37,6 +37,23 @@ const request = async (path, body) => {
   return data;
 };
 
+const requestWithAutoRefresh = async (path, body) => {
+  try {
+    return await request(path, body);
+  } catch (err) {
+    // If unauthorized, attempt refresh once and retry
+    if (err.message && err.message.toLowerCase().includes('unauthorized')) {
+      try {
+        await refresh();
+        return await request(path, body);
+      } catch (inner) {
+        throw inner;
+      }
+    }
+    throw err;
+  }
+};
+
 const login = async (email, password) => {
   const session = await request('/api/auth/login', { email, password });
   writeSession({ user: session.user, csrfToken: session.csrfToken });
@@ -69,6 +86,7 @@ const getUser = () => getSession()?.user || null;
 const getCsrfToken = () => getSession()?.csrfToken || null;
 
 export default {
+  requestWithAutoRefresh,
   login,
   register,
   refresh,

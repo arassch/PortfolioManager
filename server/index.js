@@ -162,9 +162,9 @@ const revokeRefreshToken = async (token) => {
 const blacklistJti = async (jti) => {
   if (!jti) return;
   await pool.query(
-    `INSERT INTO revoked_jti (jti, expires_at) VALUES ($1, TO_TIMESTAMP($2/1000))
+    `INSERT INTO revoked_jti (jti, expires_at) VALUES ($1, $2)
      ON CONFLICT (jti) DO NOTHING`,
-    [jti, Date.now() + REVOKED_JTI_TTL_MS]
+    [jti, new Date(Date.now() + REVOKED_JTI_TTL_MS)]
   );
 };
 
