@@ -81,6 +81,23 @@ const logout = async () => {
   writeSession(null);
 };
 
+const deleteAccount = async () => {
+  const csrf = getCsrfToken();
+  const res = await fetch(`${API_URL}/api/user`, {
+    method: 'DELETE',
+    headers: {
+      ...(csrf ? { 'x-csrf-token': csrf } : {})
+    },
+    credentials: 'include'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to delete account');
+  }
+  writeSession(null);
+  return data;
+};
+
 const getSession = () => readSession();
 const getUser = () => getSession()?.user || null;
 const getCsrfToken = () => getSession()?.csrfToken || null;
@@ -91,6 +108,7 @@ export default {
   register,
   refresh,
   logout,
+  deleteAccount,
   getSession,
   getUser,
   getCsrfToken

@@ -311,6 +311,16 @@ function PortfolioManager({ auth }) {
           >
             Logout
           </button>
+          <button
+            onClick={() => {
+              if (window.confirm('This will delete your account and all associated data. Continue?')) {
+                auth?.deleteAccount();
+              }
+            }}
+            className="text-sm px-3 py-1 bg-red-600/80 border border-red-400/50 rounded-lg hover:bg-red-700 transition text-white"
+          >
+            Delete account
+          </button>
         </div>
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">

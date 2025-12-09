@@ -30,6 +30,21 @@ export function useAuth() {
 
   const login = (email, password) => perform(AuthService.login, email, password);
   const register = (email, password) => perform(AuthService.register, email, password);
+
+  const deleteAccount = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await AuthService.deleteAccount();
+      setSession(null);
+    } catch (err) {
+      setError(err.message || 'Delete failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     await AuthService.logout();
     setSession(null);
@@ -42,6 +57,7 @@ export function useAuth() {
     isLoading,
     login,
     register,
+    deleteAccount,
     logout
   };
 }

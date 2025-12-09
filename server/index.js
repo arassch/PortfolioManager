@@ -370,6 +370,14 @@ app.post('/api/auth/logout', authenticate, requireCsrf, asyncHandler(async (req,
   res.json({ success: true });
 }));
 
+// Delete current user and cascade data
+app.delete('/api/user', authenticate, requireCsrf, asyncHandler(async (req, res) => {
+  const userId = req.userId;
+  await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  clearAuthCookies(res);
+  res.json({ success: true });
+}));
+
 // Routes
 app.get('/api/portfolio', authenticate, async (req, res) => {
   try {
@@ -447,8 +455,6 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
 app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, res, next) => {
   const userId = req.userId;
   const { accounts = [], transferRules = [], actualValues = {}, ...portfolioSettings } = req.body;
-
-    console.log('Portfolio settings:', accounts, transferRules, actualValues, portfolioSettings);
     
     const client = await pool.connect();
     try {
