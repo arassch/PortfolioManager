@@ -31,6 +31,32 @@ export function useAuth() {
   const login = (email, password) => perform(AuthService.login, email, password);
   const register = (email, password) => perform(AuthService.register, email, password);
 
+  const requestPasswordReset = async (email) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      return await AuthService.requestPasswordReset(email);
+    } catch (err) {
+      setError(err.message || 'Request failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmPasswordReset = async (token, password) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      return await AuthService.confirmPasswordReset(token, password);
+    } catch (err) {
+      setError(err.message || 'Reset failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const deleteAccount = async () => {
     setIsLoading(true);
     setError(null);
@@ -57,6 +83,8 @@ export function useAuth() {
     isLoading,
     login,
     register,
+    requestPasswordReset,
+    confirmPasswordReset,
     deleteAccount,
     logout
   };

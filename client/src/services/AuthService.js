@@ -81,6 +81,14 @@ const logout = async () => {
   writeSession(null);
 };
 
+const requestPasswordReset = async (email) => {
+  return request('/api/auth/reset/request', { email });
+};
+
+const confirmPasswordReset = async (token, password) => {
+  return request('/api/auth/reset/confirm', { token, password });
+};
+
 const deleteAccount = async () => {
   const csrf = getCsrfToken();
   const res = await fetch(`${API_URL}/api/user`, {
@@ -108,6 +116,8 @@ export default {
   register,
   refresh,
   logout,
+  requestPasswordReset,
+  confirmPasswordReset,
   deleteAccount,
   getSession,
   getUser,

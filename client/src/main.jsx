@@ -56,22 +56,41 @@ import { ProjectionSettings } from './components/ProjectionSettings';
 import { CURRENCIES, CURRENCY_SYMBOLS } from './constants/currencies';
 
 function AuthScreen({ auth }) {
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // login | register | reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
   const [localError, setLocalError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
+    setResetMessage('');
     try {
       if (mode === 'login') {
         await auth.login(email, password);
-      } else {
+      } else if (mode === 'register') {
         await auth.register(email, password);
+      } else if (mode === 'reset') {
+        await auth.requestPasswordReset(email);
+        setResetMessage('If that email exists, a reset link has been sent.');
       }
     } catch (err) {
       setLocalError(err.message || 'Authentication failed');
+    }
+  };
+
+  const handleResetConfirm = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+    setResetMessage('');
+    try {
+      await auth.confirmPasswordReset(resetToken, password);
+      setResetMessage('Password updated. You can sign in now.');
+      setMode('login');
+    } catch (err) {
+      setLocalError(err.message || 'Reset failed');
     }
   };
 
@@ -80,7 +99,9 @@ function AuthScreen({ auth }) {
       <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
         <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Manager</h1>
         <p className="text-purple-200 text-center mb-6">
-          {mode === 'login' ? 'Sign in to your account' : 'Create an account to get started'}
+          {mode === 'login' && 'Sign in to your account'}
+          {mode === 'register' && 'Create an account to get started'}
+          {mode === 'reset' && 'Request a password reset'}
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -93,19 +114,24 @@ function AuthScreen({ auth }) {
               required
             />
           </div>
-          <div>
-            <label className="block text-sm text-purple-100 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-              required
-            />
-          </div>
+          {mode !== 'reset' && (
+            <div>
+              <label className="block text-sm text-purple-100 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                required
+              />
+            </div>
+          )}
 
           {(localError || auth.error) && (
             <div className="text-red-300 text-sm">{localError || auth.error}</div>
+          )}
+          {resetMessage && (
+            <div className="text-green-300 text-sm">{resetMessage}</div>
           )}
 
           <button
@@ -113,19 +139,70 @@ function AuthScreen({ auth }) {
             disabled={auth.isLoading}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
           >
-            {auth.isLoading ? 'Working...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {auth.isLoading ? 'Working...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Create Account' : 'Send Reset Email'}
           </button>
         </form>
 
+        {mode === 'reset' && (
+          <form onSubmit={handleResetConfirm} className="space-y-4 mt-4 border-t border-white/10 pt-4">
+            <div>
+              <label className="block text-sm text-purple-100 mb-1">Reset Token</label>
+              <input
+                type="text"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-purple-100 mb-1">New Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={auth.isLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-all"
+            >
+              {auth.isLoading ? 'Working...' : 'Update Password'}
+            </button>
+          </form>
+        )}
+
         <div className="mt-4 text-center text-sm text-purple-100">
           {mode === 'login' ? (
-            <button className="underline" onClick={() => setMode('register')}>
-              Need an account? Sign up
-            </button>
+            <div className="space-y-2">
+              <button className="underline block w-full" onClick={() => setMode('register')}>
+                Need an account? Sign up
+              </button>
+              <button className="underline block w-full" onClick={() => setMode('reset')}>
+                Forgot password?
+              </button>
+            </div>
+          ) : mode === 'register' ? (
+            <div className="space-y-2">
+              <button className="underline block w-full" onClick={() => setMode('login')}>
+                Already have an account? Sign in
+              </button>
+              <button className="underline block w-full" onClick={() => setMode('reset')}>
+                Forgot password?
+              </button>
+            </div>
           ) : (
-            <button className="underline" onClick={() => setMode('login')}>
-              Already have an account? Sign in
-            </button>
+            <div className="space-y-2">
+              <button className="underline block w-full" onClick={() => setMode('login')}>
+                Back to sign in
+              </button>
+              <button className="underline block w-full" onClick={() => setMode('register')}>
+                Need an account? Sign up
+              </button>
+            </div>
           )}
         </div>
       </div>
