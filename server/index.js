@@ -35,17 +35,41 @@ const transporter = process.env.SMTP_HOST
         : undefined,
     })
   : null;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 const sendResetEmail = async (to, token) => {
   const resetBase = process.env.RESET_URL_BASE || process.env.CLIENT_URL || 'http://localhost:5173';
   const resetLink = `${resetBase}?token=${encodeURIComponent(token)}`;
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
+
+  // Prefer Resend API if provided (avoids SMTP port issues)
+  if (RESEND_API_KEY) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject: 'Reset your password',
+        text: `Reset your password: ${resetLink}`,
+        html: `<p>Reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`
+      })
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`Resend API failed: ${res.status} ${msg}`);
+    }
+    return;
+  }
 
   if (!transporter) {
     console.warn('SMTP not configured; printing reset link to console:', resetLink);
     return;
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
   await transporter.sendMail({
     from,
     to,
