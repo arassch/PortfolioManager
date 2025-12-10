@@ -9,9 +9,12 @@ export function AccountItem({
   onSaveEdit, 
   onFinishEdit,
   onDelete, 
-  onAddActualValue 
+  onAddActualValue,
+  onDeleteActualValue,
+  actualValues = {},
+  showActualValueInput,
+  onToggleActualValueInput
 }) {
-  const [showActualInput, setShowActualInput] = useState(false);
   const [year, setYear] = useState('');
   const [value, setValue] = useState('');
 
@@ -25,6 +28,11 @@ export function AccountItem({
       setShowActualInput(false);
     }
   };
+  const actualEntries = Object.entries(actualValues || {}).map(([yearIdx, val]) => ({
+    yearIndex: Number(yearIdx),
+    value: val,
+    year: new Date().getFullYear() + Number(yearIdx)
+  })).sort((a, b) => a.year - b.year);
 
   const yieldRate = account.type === 'cash' ? account.interestRate : account.yield;
   const yieldLabel = account.type === 'cash' ? 'Interest' : 'Yield';
@@ -94,35 +102,52 @@ export function AccountItem({
             </div>
             <div>
               <button
-                onClick={() => setShowActualInput(!showActualInput)}
+                onClick={() => onToggleActualValueInput?.()}
                 className="text-sm text-purple-300 hover:text-purple-200 underline"
               >
-                Log Actual Value
+                Edit Actual Values
               </button>
             </div>
           </div>
-          {showActualInput && (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="number"
-                placeholder="Year"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
-              />
-              <input
-                type="number"
-                placeholder="Actual Value"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="flex-1 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
-              />
-              <button
-                onClick={handleAddActual}
-                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
-              >
-                Save
-              </button>
+          {showActualValueInput && (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder="Year"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                />
+                <input
+                  type="number"
+                  placeholder="Actual Value"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="flex-1 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                />
+                <button
+                  onClick={handleAddActual}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+                >
+                  Save
+                </button>
+              </div>
+              {actualEntries.length > 0 && (
+                <div className="text-sm text-purple-100 space-y-1">
+                  {actualEntries.map((entry) => (
+                    <div key={entry.year} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
+                      <span>{entry.year}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
+                      <button
+                        onClick={() => onDeleteActualValue?.(account.id, entry.yearIndex)}
+                        className="text-red-300 hover:text-red-200 text-xs underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

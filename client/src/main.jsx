@@ -365,6 +365,23 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
+  const handleDeleteActualValue = async (accountId, year) => {
+    const accountActuals = { ...(portfolio.actualValues[accountId] || {}) };
+    delete accountActuals[year];
+    const updatedActualValues = { ...portfolio.actualValues };
+    if (Object.keys(accountActuals).length === 0) {
+      delete updatedActualValues[accountId];
+    } else {
+      updatedActualValues[accountId] = accountActuals;
+    }
+    const updatedPortfolio = new Portfolio({
+      ...portfolio.toJSON(),
+      actualValues: updatedActualValues
+    });
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
+  };
+
   // Transfer rule handlers
   const handleAddRule = async (ruleData) => {
     try {
@@ -582,6 +599,8 @@ function PortfolioManager({ auth }) {
                   onFinishEdit={() => setEditingAccountId(null)}
                   onSaveEdit={handleSaveAccountEdit}
                   onAddActualValue={handleAddActualValue}
+                  onDeleteActualValue={handleDeleteActualValue}
+                  actualValues={portfolio.actualValues[account.id] || {}}
                   showActualValueInput={showActualInput === account.id}
                   onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
                 />
