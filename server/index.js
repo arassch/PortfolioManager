@@ -5,6 +5,7 @@ import pkg from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 const { Pool } = pkg;
 dotenv.config();
@@ -22,6 +23,37 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.warn('WARNING: JWT_SECRET is not set. Set a strong secret in server/.env for production.');
 }
+
+// Email (reset) setup
+const transporter = process.env.SMTP_HOST
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: process.env.SMTP_USER
+        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+        : undefined,
+    })
+  : null;
+
+const sendResetEmail = async (to, token) => {
+  const resetBase = process.env.RESET_URL_BASE || process.env.CLIENT_URL || 'http://localhost:5173';
+  const resetLink = `${resetBase}?token=${encodeURIComponent(token)}`;
+
+  if (!transporter) {
+    console.warn('SMTP not configured; printing reset link to console:', resetLink);
+    return;
+  }
+
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
+  await transporter.sendMail({
+    from,
+    to,
+    subject: 'Reset your password',
+    text: `Reset your password: ${resetLink}`,
+    html: `<p>Reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`
+  });
+};
 
 // Middleware
 app.use(cors({
@@ -69,6 +101,7 @@ const makeCsrfToken = () => crypto.randomBytes(16).toString('hex');
 const makeRefreshToken = () => crypto.randomBytes(32).toString('hex');
 const makeJti = () => crypto.randomBytes(12).toString('hex');
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const makeResetToken = () => crypto.randomBytes(32).toString('hex');
 
 const setCookies = (res, { accessToken, refreshToken, csrfToken }) => {
   const secure = process.env.NODE_ENV === 'production';
@@ -157,6 +190,30 @@ const deleteRefreshToken = async (token) => {
 const revokeRefreshToken = async (token) => {
   const tokenHash = hashToken(token);
   await pool.query('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [tokenHash]);
+};
+
+const createPasswordResetToken = async (userId) => {
+  const token = makeResetToken();
+  const tokenHash = hashToken(token);
+  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+  await pool.query(
+    `INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token_hash) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+    [tokenHash, userId, expires]
+  );
+  return token;
+};
+
+const usePasswordResetToken = async (token) => {
+  const tokenHash = hashToken(token);
+  const res = await pool.query(
+    `DELETE FROM password_reset_tokens
+     WHERE token_hash = $1 AND expires_at > NOW()
+     RETURNING user_id`,
+    [tokenHash]
+  );
+  return res.rows[0]?.user_id || null;
 };
 
 const blacklistJti = async (jti) => {
@@ -367,6 +424,50 @@ app.post('/api/auth/logout', authenticate, requireCsrf, asyncHandler(async (req,
     await blacklistJti(req.jti);
   }
   clearAuthCookies(res);
+  res.json({ success: true });
+}));
+
+// Request password reset
+app.post('/api/auth/reset/request', asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  const userRes = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+  const user = userRes.rows[0];
+  if (!user) {
+    // Do not reveal whether user exists
+    return res.json({ success: true });
+  }
+  const token = await createPasswordResetToken(user.id);
+  try {
+    await sendResetEmail(user.email, token);
+  } catch (err) {
+    console.error('Failed to send reset email', err);
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(500).json({ error: 'Failed to send reset email' });
+    }
+  }
+  res.json({ success: true, resetToken: process.env.NODE_ENV === 'production' ? undefined : token });
+}));
+
+// Confirm password reset
+app.post('/api/auth/reset/confirm', asyncHandler(async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include letters and numbers' });
+  }
+
+  const userId = await usePasswordResetToken(token);
+  if (!userId) {
+    return res.status(400).json({ error: 'Invalid or expired reset token' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
   res.json({ success: true });
 }));
 
