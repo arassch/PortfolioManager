@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -22,6 +22,19 @@ export function ChartSection({
   onToggleIndividualAccounts
 }) {
   const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
+  const currentYear = new Date().getFullYear();
+
+  const getDefaultHover = () => {
+    if (!projectionData || projectionData.length === 0) return null;
+    const current = projectionData.find(p => p.year === currentYear);
+    return current || projectionData[0];
+  };
+
+  const [hoverData, setHoverData] = useState(getDefaultHover());
+
+  useEffect(() => {
+    setHoverData(getDefaultHover());
+  }, [projectionData]);
   const accountMap = accounts.reduce((map, acc) => {
     map[acc.id] = acc;
     return map;
@@ -164,6 +177,59 @@ export function ChartSection({
     { name: 'Non-Taxed', value: totals.nonTaxed, color: '#34d399' }
   ];
 
+  const getHoverTotals = () => {
+    const source = hoverData;
+    if (!source) return { invested: totals.invested, cash: totals.cash, taxed: totals.taxed, nonTaxed: totals.nonTaxed };
+    // If per-account data exists, derive totals from it; otherwise fallback to current totals
+    const hasPerAccount = accounts.some(acc => source[`account_${acc.id}`] != null);
+    if (!hasPerAccount) return { invested: totals.invested, cash: totals.cash, taxed: totals.taxed, nonTaxed: totals.nonTaxed };
+    let invested = 0;
+    let cash = 0;
+    let taxed = 0;
+    let nonTaxed = 0;
+    accounts.forEach(acc => {
+      const val = source[`account_${acc.id}`];
+      if (val == null || !selectedAccounts[acc.id]) return;
+      if (acc.type === 'cash') {
+        cash += val;
+      } else {
+        invested += val;
+      }
+      if (acc.taxable) taxed += val; else nonTaxed += val;
+    });
+    return { invested, cash, taxed, nonTaxed };
+  };
+
+  const hoverTotals = getHoverTotals();
+  const hoverInvestedVsCash = [
+    { name: 'Invested', value: hoverTotals.invested, color: '#8b5cf6' },
+    { name: 'Cash', value: hoverTotals.cash, color: '#22d3ee' }
+  ];
+  const hoverTaxedVsNonTaxed = [
+    { name: 'Taxed', value: hoverTotals.taxed, color: '#f97316' },
+    { name: 'Non-Taxed', value: hoverTotals.nonTaxed, color: '#34d399' }
+  ];
+
+  const renderPieLegend = (data) => {
+    const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
+    return (
+      <div className="flex flex-col gap-1 text-sm text-slate-100">
+        {data.map((entry) => {
+          const pct = total ? `${((entry.value / total) * 100).toFixed(1)}%` : '0%';
+          return (
+            <div key={entry.name} className="flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span>{entry.name} — {pct}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
       <div className="flex justify-between items-center mb-4">
@@ -226,7 +292,16 @@ export function ChartSection({
         <div className="lg:col-span-2 h-[530px]">
           <ResponsiveContainer width="100%" height="100%">
             {activeTab === 'growth' ? (
-              <LineChart data={projectionData}>
+              <LineChart
+                data={projectionData}
+                onMouseMove={(state) => {
+              const payload = state?.activePayload;
+              if (payload && payload[0]?.payload) {
+                setHoverData(payload[0].payload);
+              }
+            }}
+            onMouseLeave={() => setHoverData(getDefaultHover())}
+          >
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                 <XAxis dataKey="label" stroke="#ffffff80" />
                 <YAxis
@@ -271,7 +346,16 @@ export function ChartSection({
                     ))}
               </LineChart>
             ) : (
-              <BarChart data={projectionData}>
+              <BarChart
+                data={projectionData}
+                onMouseMove={(state) => {
+                const payload = state?.activePayload;
+                if (payload && payload[0]?.payload) {
+                  setHoverData(payload[0].payload);
+                }
+              }}
+              onMouseLeave={() => setHoverData(getDefaultHover())}
+            >
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                 <XAxis dataKey="label" stroke="#ffffff80" />
                 <YAxis
@@ -313,7 +397,7 @@ export function ChartSection({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 8, right: 8, bottom: 28, left: 8 }}>
                 <Pie
-                  data={investedVsCash}
+                  data={hoverInvestedVsCash}
                   dataKey="value"
                   nameKey="name"
                   outerRadius={64}
@@ -321,7 +405,7 @@ export function ChartSection({
                   paddingAngle={1}
                   stroke="#0f172a"
                 >
-                  {investedVsCash.map((entry, index) => (
+                  {hoverInvestedVsCash.map((entry, index) => (
                     <Cell key={`ivc-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -335,14 +419,15 @@ export function ChartSection({
                   labelStyle={{ color: '#ffffff' }}
                   itemStyle={{ color: '#e2e8f0' }}
                   formatter={(value, name) => {
-                    const total = investedVsCash.reduce((sum, item) => sum + (item.value || 0), 0);
+                    const total = hoverInvestedVsCash.reduce((sum, item) => sum + (item.value || 0), 0);
                     const pct = total ? ` (${((value / total) * 100).toFixed(1)}%)` : '';
                     return [`${CurrencyService.formatCurrency(value, baseCurrency)}${pct}`, name];
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ color: '#e2e8f0' }}
-                  formatter={(value) => <span style={{ color: '#e2e8f0' }}>{value}</span>}
+                  verticalAlign="bottom"
+                  align="center"
+                  content={() => renderPieLegend(hoverInvestedVsCash)}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -353,7 +438,7 @@ export function ChartSection({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 8, right: 8, bottom: 28, left: 8 }}>
                 <Pie
-                  data={taxedVsNonTaxed}
+                  data={hoverTaxedVsNonTaxed}
                   dataKey="value"
                   nameKey="name"
                   outerRadius={64}
@@ -361,7 +446,7 @@ export function ChartSection({
                   paddingAngle={1}
                   stroke="#0f172a"
                 >
-                  {taxedVsNonTaxed.map((entry, index) => (
+                  {hoverTaxedVsNonTaxed.map((entry, index) => (
                     <Cell key={`tvnt-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -375,14 +460,15 @@ export function ChartSection({
                   labelStyle={{ color: '#ffffff' }}
                   itemStyle={{ color: '#e2e8f0' }}
                   formatter={(value, name) => {
-                    const total = taxedVsNonTaxed.reduce((sum, item) => sum + (item.value || 0), 0);
+                    const total = hoverTaxedVsNonTaxed.reduce((sum, item) => sum + (item.value || 0), 0);
                     const pct = total ? ` (${((value / total) * 100).toFixed(1)}%)` : '';
                     return [`${CurrencyService.formatCurrency(value, baseCurrency)}${pct}`, name];
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ color: '#e2e8f0' }}
-                  formatter={(value) => <span style={{ color: '#e2e8f0' }}>{value}</span>}
+                  verticalAlign="bottom"
+                  align="center"
+                  content={() => renderPieLegend(hoverTaxedVsNonTaxed)}
                 />
               </PieChart>
             </ResponsiveContainer>
