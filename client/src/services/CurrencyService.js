@@ -24,7 +24,11 @@ class CurrencyService {
 
   formatCurrency(amount, currency, options = {}) {
     const symbol = this.getSymbol(currency);
-    const formatted = amount.toLocaleString(undefined, {
+    const numeric = Number(amount);
+    if (!Number.isFinite(numeric)) {
+      return `${symbol}—`;
+    }
+    const formatted = numeric.toLocaleString(undefined, {
       minimumFractionDigits: options.decimals ?? 0,
       maximumFractionDigits: options.decimals ?? 0,
       ...options

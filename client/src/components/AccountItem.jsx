@@ -19,20 +19,23 @@ export function AccountItem({
   const [value, setValue] = useState('');
 
   const handleAddActual = () => {
-    const yearIndex = parseInt(year) - new Date().getFullYear();
+    const yearInt = parseInt(year, 10);
     const actualValue = parseFloat(value);
-    if (!isNaN(yearIndex) && !isNaN(actualValue) && yearIndex >= 0) {
-      onAddActualValue(account.id, yearIndex, actualValue);
+    if (!isNaN(yearInt) && !isNaN(actualValue)) {
+      onAddActualValue(account.id, yearInt, actualValue);
       setYear('');
       setValue('');
-      setShowActualInput(false);
+      onToggleActualValueInput?.();
     }
   };
-  const actualEntries = Object.entries(actualValues || {}).map(([yearIdx, val]) => ({
-    yearIndex: Number(yearIdx),
-    value: val,
-    year: new Date().getFullYear() + Number(yearIdx)
-  })).sort((a, b) => a.year - b.year);
+  const currentYear = new Date().getFullYear();
+  const actualEntries = Object.entries(actualValues || {})
+    .map(([key, val]) => {
+      const numKey = Number(key);
+      const yearValue = numKey >= 1900 ? numKey : currentYear + numKey; // support legacy offsets
+      return { key: numKey, value: val, year: yearValue };
+    })
+    .sort((a, b) => a.year - b.year);
 
   const yieldRate = account.type === 'cash' ? account.interestRate : account.yield;
   const yieldLabel = account.type === 'cash' ? 'Interest' : 'Yield';
@@ -139,7 +142,7 @@ export function AccountItem({
                     <div key={entry.year} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
                       <span>{entry.year}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
                       <button
-                        onClick={() => onDeleteActualValue?.(account.id, entry.yearIndex)}
+                        onClick={() => onDeleteActualValue?.(account.id, entry.key)}
                         className="text-red-300 hover:text-red-200 text-xs underline"
                       >
                         Delete

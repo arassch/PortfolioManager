@@ -12,7 +12,47 @@ class ProjectionController {
     }
 
     const currentYear = new Date().getFullYear();
-    
+
+    // Build actuals by absolute year (with legacy offset support)
+    const actualTotalsByYear = {};
+    const actualByAccountYear = {};
+    portfolio.accounts.forEach(account => {
+      const entries = portfolio.actualValues[account.id] || {};
+      Object.entries(entries).forEach(([key, val]) => {
+        const numKey = Number(key);
+        const yearValue = numKey >= 1900 ? numKey : currentYear + numKey;
+        if (!selectedAccounts[account.id]) return;
+        const baseVal = CurrencyService.convertToBase(val, account.currency, portfolio.baseCurrency);
+        actualTotalsByYear[yearValue] = (actualTotalsByYear[yearValue] || 0) + baseVal;
+        if (!actualByAccountYear[yearValue]) actualByAccountYear[yearValue] = {};
+        actualByAccountYear[yearValue][account.id] = baseVal;
+      });
+    });
+
+    const minActualYear = Object.keys(actualTotalsByYear)
+      .map(Number)
+      .filter(y => !Number.isNaN(y) && y < currentYear)
+      .sort((a, b) => a - b)[0];
+
+    // Past actuals only entries
+    if (minActualYear !== undefined) {
+      for (let y = minActualYear; y < currentYear; y++) {
+        const yearData = {
+          year: y,
+          label: y.toString(),
+          projected: null,
+          totalYield: 0,
+          actual: actualTotalsByYear[y] ? Math.round(actualTotalsByYear[y]) : null
+        };
+        if (showIndividualAccounts && actualByAccountYear[y]) {
+          Object.entries(actualByAccountYear[y]).forEach(([accId, val]) => {
+            yearData[`account_${accId}`] = Math.round(val);
+          });
+        }
+        data.push(yearData);
+      }
+    }
+
     const accountBalances = {};
     portfolio.accounts.forEach(account => {
       accountBalances[account.id] = CurrencyService.convertToBase(
@@ -141,9 +181,12 @@ class ProjectionController {
           yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
         }
 
-        if (portfolio.actualValues[account.id]?.[yearIndex]) {
+        const actualForYear =
+          portfolio.actualValues[account.id]?.[year] ??
+          portfolio.actualValues[account.id]?.[yearIndex]; // support legacy index-based data
+        if (actualForYear !== undefined) {
           totalActual += CurrencyService.convertToBase(
-            portfolio.actualValues[account.id][yearIndex],
+            actualForYear,
             account.currency,
             portfolio.baseCurrency
           );
