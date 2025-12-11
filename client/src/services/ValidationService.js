@@ -31,9 +31,18 @@ class ValidationService {
     if (!rule.toAccountId) {
       errors.push('At least one transfer destination is required');
     }
+
+    if (!rule.fromExternal && rule.fromAccountId && rule.toAccountId && String(rule.fromAccountId) === String(rule.toAccountId)) {
+      errors.push('Source and destination accounts cannot match');
+    }
     
     if (rule.amountType === 'fixed' && rule.externalAmount <= 0) {
       errors.push('Amount must be greater than 0');
+    }
+    if (rule.amountType === 'earnings') {
+      if (rule.externalAmount <= 0 || rule.externalAmount > 100) {
+        errors.push('Percentage of earnings must be between 1 and 100');
+      }
     }
     
     return errors;

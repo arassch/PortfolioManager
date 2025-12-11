@@ -6,11 +6,15 @@ export class TransferRule {
     this.id = data.id || Date.now();
     this.fromAccountId = data.fromAccountId || '';
     this.fromExternal = data.fromExternal || false;
-    this.externalAmount = parseFloat(data.externalAmount) || 0;
+    const amount = parseFloat(data.externalAmount);
+    this.externalAmount = isNaN(amount) ? 0 : amount;
     this.externalCurrency = data.externalCurrency || 'USD';
     this.toAccountId = data.toAccountId; 
-    this.frequency = data.frequency || 'annual'; // 'annual' or 'monthly'
+    this.frequency = data.frequency || 'annual';
     this.amountType = data.amountType || 'fixed'; // 'fixed' or 'earnings'
+    if (this.amountType === 'earnings' && (!this.externalAmount || this.externalAmount <= 0)) {
+      this.externalAmount = 100; // default to 100% of earnings
+    }
   }
 
   isValid() {

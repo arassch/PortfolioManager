@@ -175,7 +175,8 @@ class ProjectionController {
 
       if (rule.amountType === 'earnings') {
         const growth = periodGrowth[rule.fromAccountId] || 0; // already net of tax
-        availableAmount = growth > 0 ? growth : 0;
+        const pct = rule.externalAmount > 0 ? Math.min(rule.externalAmount, 100) : 100;
+        availableAmount = growth > 0 ? growth * (pct / 100) : 0;
       } else {
         availableAmount = CurrencyService.convertToBase(
           rule.externalAmount || 0,

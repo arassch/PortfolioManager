@@ -29,7 +29,13 @@ export function TransferRuleForm({
   }, [rule]);
 
   const handleChange = (field, value) => {
-    setFormRule(prev => ({ ...prev, [field]: value }));
+    setFormRule(prev => {
+      // If switching to earnings and no percentage set, default to 100%
+      if (field === 'amountType' && value === 'earnings' && (!prev.externalAmount || prev.externalAmount <= 0)) {
+        return { ...prev, amountType: value, externalAmount: 100 };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleSubmit = () => {
@@ -62,26 +68,44 @@ export function TransferRuleForm({
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
-              <label className="block text-purple-200 text-sm mb-2">
-                Amount per {formRule.frequency === 'annual' ? 'Year' : 'Month'}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={formRule.externalAmount || ''}
-                  onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
-                  className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                />
-                <select
-                  value={formRule.externalCurrency}
-                  onChange={(e) => handleChange('externalCurrency', e.target.value)}
-                  className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                >
-                  {CURRENCIES.map(curr => (
-                    <option key={curr} value={curr}>{curr}</option>
-                  ))}
-                </select>
-              </div>
+              {formRule.amountType === 'earnings' ? (
+                <div>
+                  <label className="block text-purple-200 text-sm mb-2">
+                    Percentage of earnings to transfer (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={formRule.externalAmount || ''}
+                    onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              ) : (
+                <>
+                  <label className="block text-purple-200 text-sm mb-2">
+                    Amount per {formRule.frequency === 'annual' ? 'Year' : 'Month'}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={formRule.externalAmount || ''}
+                      onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+                      className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    />
+                    <select
+                      value={formRule.externalCurrency}
+                      onChange={(e) => handleChange('externalCurrency', e.target.value)}
+                      className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    >
+                      {CURRENCIES.map(curr => (
+                        <option key={curr} value={curr}>{curr}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div>
@@ -106,6 +130,33 @@ export function TransferRuleForm({
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
+              {formRule.amountType === 'earnings' ? (
+                <div className="mt-2">
+                  <label className="block text-purple-200 text-sm mb-2">
+                    Percentage of earnings to transfer (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={formRule.externalAmount || 100}
+                    onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              ) : (
+                <div className="mt-2">
+                  <label className="block text-purple-200 text-sm mb-2">
+                    Amount to transfer (in source account currency)
+                  </label>
+                  <input
+                    type="number"
+                    value={formRule.externalAmount || ''}
+                    onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -132,9 +183,11 @@ export function TransferRuleForm({
           className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
         >
           <option value="">Select Account</option>
-          {accounts.map(acc => (
-            <option key={acc.id} value={acc.id}>{acc.name}</option>
-          ))}
+          {accounts
+            .filter(acc => !formRule.fromAccountId || String(acc.id) !== String(formRule.fromAccountId))
+            .map(acc => (
+              <option key={acc.id} value={acc.id}>{acc.name}</option>
+            ))}
         </select>
       </div>
 
