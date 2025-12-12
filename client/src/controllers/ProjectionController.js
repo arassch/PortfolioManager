@@ -12,6 +12,7 @@ class ProjectionController {
     }
 
     const currentYear = new Date().getFullYear();
+    const taxRate = portfolio.taxRate || 0;
 
     // Build actuals by absolute year (with legacy offset support)
     const actualTotalsByYear = {};
@@ -54,12 +55,20 @@ class ProjectionController {
     }
 
     const accountBalances = {};
+    const accountBasis = {};
     portfolio.accounts.forEach(account => {
-      accountBalances[account.id] = CurrencyService.convertToBase(
-        account.balance, 
+      const balanceBase = CurrencyService.convertToBase(
+        account.balance,
         account.currency,
         portfolio.baseCurrency
       );
+      accountBalances[account.id] = balanceBase;
+      const basisBase = CurrencyService.convertToBase(
+        account.costBasis || account.balance,
+        account.currency,
+        portfolio.baseCurrency
+      );
+      accountBasis[account.id] = basisBase;
     });
 
     for (let yearIndex = 0; yearIndex <= portfolio.projectionYears; yearIndex++) {
@@ -108,10 +117,8 @@ class ProjectionController {
               ? yearStartBalances[account.id]
               : accountBalances[account.id];
             const grossGain = gainBase * monthlyRate;
-            const tax = account.taxable && grossGain > 0
-              ? grossGain * (portfolio.taxRate / 100)
-              : 0;
-            const netGain = grossGain - tax;
+            // Compound pre-tax; taxes handled separately in after-tax view
+            const netGain = grossGain;
             accountBalances[account.id] += netGain;
             monthNetGain[account.id] = netGain;
             yearNetGains[account.id] += netGain;
@@ -127,7 +134,8 @@ class ProjectionController {
                 monthNetGain,
                 transferTotals,
                 portfolio.baseCurrency,
-                portfolio.taxRate
+                taxRate,
+                accountBasis
               );
             }
           });
@@ -148,7 +156,8 @@ class ProjectionController {
               yearNetGains,
               transferTotals,
               portfolio.baseCurrency,
-              portfolio.taxRate
+              taxRate,
+              accountBasis
             );
           }
         });
@@ -162,6 +171,12 @@ class ProjectionController {
         if (!isSelected) return;
 
         const value = accountBalances[account.id];
+        const afterTax = this.calculateAfterTaxValue(
+          value,
+          accountBasis[account.id],
+          account.taxTreatment || (account.taxable ? 'taxable' : 'deferred'),
+          taxRate
+        );
 
         totalProjected += value;
 
@@ -178,6 +193,7 @@ class ProjectionController {
 
         if (showIndividualAccounts) {
           yearData[`account_${account.id}`] = Math.round(value);
+          yearData[`account_${account.id}_net`] = Math.round(afterTax);
           yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
         }
 
@@ -203,7 +219,7 @@ class ProjectionController {
     return data;
   }
 
-  applyTransfer(rule, portfolio, accountBalances, periodGrowth, transferTotals, baseCurrency, taxRate) {
+  applyTransfer(rule, portfolio, accountBalances, periodGrowth, transferTotals, baseCurrency, taxRate, accountBasis) {
     let availableAmount = 0;
 
     if (rule.fromExternal) {
@@ -235,11 +251,31 @@ class ProjectionController {
     }
 
     if (!rule.fromExternal && rule.fromAccountId) {
+      // Move basis proportionally when transferring between accounts
+      const fromValue = accountBalances[rule.fromAccountId];
+      const fromBasis = accountBasis[rule.fromAccountId] || 0;
+      const proportion = fromValue > 0 ? Math.min(1, availableAmount / fromValue) : 1;
+      const basisMoved = fromBasis * proportion;
       accountBalances[rule.fromAccountId] -= availableAmount;
+      accountBasis[rule.fromAccountId] = Math.max(0, fromBasis - basisMoved);
       transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - availableAmount;
+      accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + basisMoved;
+    } else if (rule.fromExternal) {
+      // External contribution increases basis on the target
+      accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + availableAmount;
     }
     accountBalances[toAccountId] += availableAmount;
     transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + availableAmount;
+  }
+
+  calculateAfterTaxValue(currentValue, costBasis, taxTreatment, taxRate) {
+    const rate = (taxRate || 0) / 100;
+    if (taxTreatment === 'roth') return currentValue;
+    if (taxTreatment === 'deferred') return currentValue * (1 - rate);
+    // taxable: apply cap-gains style haircut on embedded gains
+    const basis = Math.max(costBasis || 0, 0);
+    const embeddedGain = Math.max(currentValue - basis, 0);
+    return currentValue - embeddedGain * rate;
   }
 }
 

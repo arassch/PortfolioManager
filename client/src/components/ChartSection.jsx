@@ -52,24 +52,26 @@ export function ChartSection({
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
+        const isTaxable = !!acc.taxable;
+        const currNet = isTaxable && current ? current[`account_${acc.id}_net`] : null;
         if (prevVal == null || currVal == null) return null;
 
         const gross = prevVal * (1 + rate / 100);
-        const tax = acc.taxable && gross > prevVal ? (gross - prevVal) * (taxRate / 100) : 0;
-        const netAfterTax = gross - tax;
         const transferNet = current[`account_${acc.id}_transfers`] || 0;
         const calcParts = [
           `prev ${formatCurrency(prevVal)}`,
           `x ${rate}%`,
-          tax ? `- tax ${formatCurrency(tax)}` : null,
           transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
           `= ${formatCurrency(currVal)}`
         ].filter(Boolean);
         const calc = calcParts.join(' ');
+        const estTax = isTaxable && currNet != null ? Math.max(currVal - currNet, 0) : null;
 
         return {
           name: acc.name,
           current: currVal,
+          net: currNet,
+          estTax,
           calc
         };
       })
@@ -103,6 +105,11 @@ export function ChartSection({
               {buildAccountBreakdown(current, prev).map((item) => (
                 <div key={item.name}>
                   <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                  {item.net != null && (
+                    <div className="text-[11px] text-emerald-200">
+                      After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -137,6 +144,11 @@ export function ChartSection({
               {buildAccountBreakdown(current, prev).map((item) => (
                 <div key={item.name}>
                   <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                  {item.net != null && (
+                    <div className="text-[11px] text-emerald-200">
+                      After-tax est: {formatCurrency(item.net)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

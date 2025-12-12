@@ -11,6 +11,9 @@ export class Account {
     this.interestRate = parseFloat(data.interestRate) || 0; // for cash accounts
     this.yield = parseFloat(data.yield) || 0; // for investment accounts
     this.taxable = data.taxable || false;
+    // Tax treatment/basis for after-tax views
+    this.taxTreatment = data.taxTreatment || (this.taxable ? 'taxable' : 'deferred'); // 'taxable' | 'deferred' | 'roth'
+    this.costBasis = parseFloat(data.costBasis) || this.balance; // starting principal/basis
   }
 
   isValid() {
@@ -30,7 +33,9 @@ export class Account {
       currency: this.currency,
       interestRate: this.interestRate,
       yield: this.yield,
-      taxable: this.taxable
+      taxable: this.taxable,
+      taxTreatment: this.taxTreatment,
+      costBasis: this.costBasis
     };
   }
 }
