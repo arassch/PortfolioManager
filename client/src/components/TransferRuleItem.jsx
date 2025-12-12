@@ -5,7 +5,7 @@ import CurrencyService from '../services/CurrencyService';
 export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   const fromAccount = accounts.find(acc => acc.id == rule.fromAccountId);
   const toAccount = accounts.find(acc => acc.id == rule.toAccountId);
-  const isExternalOutcome = rule.toExternal === true || rule.direction === 'output';
+  const isExternalOutcome = (rule.toExternal === true || rule.direction === 'output') && !toAccount;
   const isExternalIncome = rule.fromExternal === true || rule.direction === 'input';
   const externalLabel = rule.externalTarget || 'External';
 

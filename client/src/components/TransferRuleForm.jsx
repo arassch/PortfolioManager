@@ -47,7 +47,20 @@ export function TransferRuleForm({
   };
 
   const handleSubmit = () => {
-    onSubmit(formRule);
+    const cleaned = { ...formRule };
+    if (!cleaned.external) {
+      cleaned.direction = 'internal';
+      cleaned.fromExternal = false;
+      cleaned.toExternal = false;
+      cleaned.externalTarget = '';
+    } else if (cleaned.direction === 'input') {
+      cleaned.fromExternal = true;
+      cleaned.toExternal = false;
+    } else if (cleaned.direction === 'output') {
+      cleaned.fromExternal = false;
+      cleaned.toExternal = true;
+    }
+    onSubmit(cleaned);
   };
 
   const renderAmountControls = (disableEarnings) => (
