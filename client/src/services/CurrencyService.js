@@ -5,6 +5,13 @@ import { EXCHANGE_RATES, CURRENCY_SYMBOLS } from '../constants/currencies';
  */
 class CurrencyService {
   convertToBase(amount, fromCurrency, baseCurrency = 'USD') {
+    if (!fromCurrency || !baseCurrency || fromCurrency === baseCurrency) {
+      return Number(amount) || 0;
+    }
+    if (!EXCHANGE_RATES[fromCurrency] || !EXCHANGE_RATES[baseCurrency]) {
+      // Fallback: no conversion if we don't know the rate
+      return Number(amount) || 0;
+    }
     // Convert to USD first (intermediate step)
     const toUSD = amount / EXCHANGE_RATES[fromCurrency];
     // Then convert from USD to base currency

@@ -54,10 +54,15 @@ CREATE TABLE accounts (
 CREATE TABLE transfer_rules (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  frequency VARCHAR(50) NOT NULL, -- 'monthly' or 'annual'
+  frequency VARCHAR(50), -- 'monthly' or 'annual'
+  start_date DATE,
+  end_date DATE,
+  one_time_at DATE,
   from_external BOOLEAN DEFAULT false,
   from_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-  to_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  to_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+  to_external BOOLEAN DEFAULT false,
+  external_target VARCHAR(255),
   external_amount DECIMAL(15,2),
   external_currency VARCHAR(3),
   amount_type VARCHAR(50) NOT NULL, -- 'fixed' or 'earnings'

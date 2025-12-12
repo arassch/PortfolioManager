@@ -537,7 +537,11 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       fromExternal: rule.from_external,
       fromAccountId: rule.from_account_id,
       toAccountId: rule.to_account_id,
-      frequency: rule.frequency,
+      toExternal: rule.to_external,
+      externalTarget: rule.external_target,
+      frequency: rule.frequency || (rule.one_time_at ? 'one_time' : rule.frequency),
+      startDate: rule.start_date || rule.one_time_at,
+      endDate: rule.end_date,
       externalAmount: Number(rule.external_amount || 0),
       externalCurrency: rule.external_currency,
       amountType: rule.amount_type
@@ -643,21 +647,48 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         const fromAccountId = rule.fromExternal
           ? null
           : (rule.fromAccountId ? accountIdMap.get(String(rule.fromAccountId)) : null);
-        const toAccountId = accountIdMap.get(String(rule.toAccountId));
-        if (!toAccountId) {
+        const toAccountId = rule.toExternal ? null : accountIdMap.get(String(rule.toAccountId));
+
+        if (!rule.toExternal && !toAccountId && !rule.fromExternal) {
           throw new Error(`Unknown destination account id ${rule.toAccountId}`);
         }
 
-        const ruleRes = await client.query(
-          `INSERT INTO transfer_rules (portfolio_id, frequency, from_external, from_account_id, to_account_id, external_amount, external_currency, amount_type)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        const isOneTime = rule.frequency === 'one_time';
+
+        await client.query(
+          `INSERT INTO transfer_rules (
+            portfolio_id,
+            frequency,
+            start_date,
+            end_date,
+            one_time_at,
+            from_external,
+            from_account_id,
+            to_account_id,
+            to_external,
+            external_target,
+            external_amount,
+            external_currency,
+            amount_type
+          )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            RETURNING id`,
           [
-            portfolioId, rule.frequency, rule.fromExternal, fromAccountId, toAccountId,
-            rule.externalAmount, rule.externalCurrency, rule.amountType
+            portfolioId,
+            isOneTime ? null : rule.frequency,
+            rule.startDate || null,
+            isOneTime ? null : (rule.endDate || null),
+            isOneTime ? (rule.startDate || null) : null,
+            rule.fromExternal || false,
+            fromAccountId,
+            toAccountId,
+            rule.toExternal || false,
+            rule.externalTarget || null,
+            rule.externalAmount,
+            rule.externalCurrency,
+            rule.amountType
           ]
         );
-        const ruleId = ruleRes.rows[0].id;
       }
 
       // Upsert actual values against the remapped account IDs

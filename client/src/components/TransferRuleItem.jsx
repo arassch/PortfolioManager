@@ -5,13 +5,16 @@ import CurrencyService from '../services/CurrencyService';
 export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   const fromAccount = accounts.find(acc => acc.id == rule.fromAccountId);
   const toAccount = accounts.find(acc => acc.id == rule.toAccountId);
+  const isExternalOutcome = rule.toExternal === true || rule.direction === 'output';
+  const isExternalIncome = rule.fromExternal === true || rule.direction === 'input';
+  const externalLabel = rule.externalTarget || 'External';
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20">
       <div className="flex justify-between items-start">
         <div className="flex-1">
           <h4 className="text-white font-semibold mb-2">
-            {rule.fromExternal ? (
+            {isExternalIncome ? (
               <>
                 From: <span className="text-green-300">External</span>{' '}
                 <span className="text-purple-200 text-sm">
@@ -32,7 +35,9 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
             )}
           </h4>
           <div className="space-y-1 text-sm text-purple-200">
-            → {toAccount ? (
+            → {isExternalOutcome ? (
+              <span className="text-white">{externalLabel}</span>
+            ) : toAccount ? (
               <span className="text-white">{toAccount.name}</span>
             ) : (
               <span className="text-red-300">Deleted Account</span>

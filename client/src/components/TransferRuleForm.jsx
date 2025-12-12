@@ -4,11 +4,17 @@ import { FREQUENCIES, AMOUNT_TYPES, CURRENCIES } from '../constants/currencies';
 const DEFAULT_RULE = {
   fromAccountId: '',
   fromExternal: false,
+  toExternal: false,
+  external: false,
+  direction: 'internal', // 'internal' | 'input' | 'output'
+  externalTarget: '',
   externalAmount: 0,
   externalCurrency: 'USD',
-  frequency: 'annual',
+  frequency: 'annual', // 'annual' | 'monthly' | 'one_time'
+  startDate: '',
+  endDate: '',
   amountType: 'fixed',
-  toAccountId: '',
+  toAccountId: ''
 };
 
 export function TransferRuleForm({
@@ -18,19 +24,21 @@ export function TransferRuleForm({
   onCancel,
   baseCurrency = 'USD'
 }) {
-  const [formRule, setFormRule] = useState(rule ? { ...DEFAULT_RULE, ...rule } : DEFAULT_RULE);
+  const today = new Date().toISOString().slice(0, 10);
+  const initialCurrency = rule?.externalCurrency || baseCurrency;
+  const [formRule, setFormRule] = useState(rule ? { ...DEFAULT_RULE, ...rule, startDate: rule.startDate || today, externalCurrency: initialCurrency } : { ...DEFAULT_RULE, startDate: today, externalCurrency: initialCurrency });
 
   useEffect(() => {
     if (rule) {
-      setFormRule({ ...DEFAULT_RULE, ...rule });
+      setFormRule({ ...DEFAULT_RULE, ...rule, startDate: rule.startDate || today, externalCurrency: rule.externalCurrency || baseCurrency });
     } else {
-      setFormRule(DEFAULT_RULE);
+      setFormRule({ ...DEFAULT_RULE, startDate: today, externalCurrency: baseCurrency });
     }
   }, [rule]);
 
   const handleChange = (field, value) => {
     setFormRule(prev => {
-      // If switching to earnings and no percentage set, default to 100%
+      // default earnings percentage
       if (field === 'amountType' && value === 'earnings' && (!prev.externalAmount || prev.externalAmount <= 0)) {
         return { ...prev, amountType: value, externalAmount: 100 };
       }
@@ -42,73 +50,113 @@ export function TransferRuleForm({
     onSubmit(formRule);
   };
 
+  const renderAmountControls = (disableEarnings) => (
+    <>
+      <label className="block text-purple-200 text-sm mb-2">Amount Type</label>
+      <select
+        value={formRule.amountType}
+        onChange={(e) => handleChange('amountType', e.target.value)}
+        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+        disabled={disableEarnings}
+      >
+        {AMOUNT_TYPES.map(type => (
+          <option key={type} value={type}>{type}</option>
+        ))}
+      </select>
+      {formRule.amountType === 'earnings' && !disableEarnings ? (
+        <div className="mt-2">
+          <label className="block text-purple-200 text-sm mb-2">
+            Percentage of earnings to transfer (%)
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            value={formRule.externalAmount || 100}
+            onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+          />
+        </div>
+      ) : (
+        <div className="mt-2">
+          <label className="block text-purple-200 text-sm mb-2">
+            Amount
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={formRule.externalAmount || ''}
+              onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
+              className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+            />
+            <select
+              value={formRule.externalCurrency}
+              onChange={(e) => handleChange('externalCurrency', e.target.value)}
+              className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+            >
+              {CURRENCIES.map(curr => (
+                <option key={curr} value={curr}>{curr}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
       <div className="grid md:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className="flex items-center gap-2 text-white cursor-pointer mb-3">
-            <input
-              type="checkbox"
-              checked={formRule.fromExternal}
-              onChange={(e) => handleChange('fromExternal', e.target.checked)}
-              className="w-4 h-4 rounded"
-            />
-            External Source
-          </label>
-
-          {formRule.fromExternal ? (
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Amount Type</label>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formRule.external}
+                onChange={(e) => {
+                  const external = e.target.checked;
+                  handleChange('external', external);
+                  if (!external) {
+                    handleChange('direction', 'internal');
+                    handleChange('fromExternal', false);
+                    handleChange('toExternal', false);
+                    handleChange('amountType', formRule.amountType || 'fixed');
+                  } else {
+                    handleChange('direction', 'input');
+                    handleChange('fromExternal', true);
+                    handleChange('toExternal', false);
+                    handleChange('amountType', 'fixed');
+                  }
+                }}
+                className="w-4 h-4 rounded"
+              />
+              External
+            </label>
+            {formRule.external && (
               <select
-                value={formRule.amountType}
-                onChange={(e) => handleChange('amountType', e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400 mb-2"
+                value={formRule.direction === 'input' ? 'input' : 'output'}
+                onChange={(e) => {
+                  const dir = e.target.value;
+                  handleChange('direction', dir);
+                  if (dir === 'input') {
+                    handleChange('fromExternal', true);
+                    handleChange('toExternal', false);
+                    handleChange('amountType', 'fixed');
+                  } else {
+                    handleChange('fromExternal', false);
+                    handleChange('toExternal', true);
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white"
               >
-                {AMOUNT_TYPES.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
+                <option value="input">Income</option>
+                <option value="output">Outcome</option>
               </select>
-              {formRule.amountType === 'earnings' ? (
-                <div>
-                  <label className="block text-purple-200 text-sm mb-2">
-                    Percentage of earnings to transfer (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={formRule.externalAmount || ''}
-                    onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                  />
-                </div>
-              ) : (
-                <>
-                  <label className="block text-purple-200 text-sm mb-2">
-                    Amount per {formRule.frequency === 'annual' ? 'Year' : 'Month'}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={formRule.externalAmount || ''}
-                      onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
-                      className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                    />
-                    <select
-                      value={formRule.externalCurrency}
-                      onChange={(e) => handleChange('externalCurrency', e.target.value)}
-                      className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                    >
-                      {CURRENCIES.map(curr => (
-                        <option key={curr} value={curr}>{curr}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div>
+            )}
+          </div>
+
+          {!formRule.external || formRule.direction === 'output' ? (
+            <>
               <label className="block text-purple-200 text-sm mb-2">Transfer From</label>
               <select
                 value={formRule.fromAccountId}
@@ -120,75 +168,136 @@ export function TransferRuleForm({
                   <option key={acc.id} value={acc.id}>{acc.name}</option>
                 ))}
               </select>
-              <label className="block text-purple-200 text-sm mb-2">Amount Type</label>
+              {renderAmountControls(formRule.direction === 'input')}
+            </>
+          ) : null}
+
+          {formRule.external && formRule.direction === 'input' ? (
+            <>
+              <label className="block text-purple-200 text-sm mb-2">Transfer Target</label>
               <select
-                value={formRule.amountType}
-                onChange={(e) => handleChange('amountType', e.target.value)}
+                value={formRule.toAccountId}
+                onChange={(e) => handleChange('toAccountId', e.target.value)}
                 className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
               >
-                {AMOUNT_TYPES.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                <option value="">Select Account</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.name}</option>
                 ))}
               </select>
-              {formRule.amountType === 'earnings' ? (
-                <div className="mt-2">
-                  <label className="block text-purple-200 text-sm mb-2">
-                    Percentage of earnings to transfer (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={formRule.externalAmount || 100}
-                    onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                  />
-                </div>
-              ) : (
-                <div className="mt-2">
-                  <label className="block text-purple-200 text-sm mb-2">
-                    Amount to transfer (in source account currency)
-                  </label>
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
+                <input
+                  type="text"
+                  value={formRule.externalTarget}
+                  onChange={(e) => handleChange('externalTarget', e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  placeholder="e.g., Paycheck, Vendor"
+                />
+              </div>
+              {/* External income: fixed amount only */}
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm mb-2">Amount</label>
+                <div className="flex gap-2">
                   <input
                     type="number"
                     value={formRule.externalAmount || ''}
                     onChange={(e) => handleChange('externalAmount', parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
                   />
+                  <select
+                    value={formRule.externalCurrency}
+                    onChange={(e) => handleChange('externalCurrency', e.target.value)}
+                    className="w-24 px-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  >
+                    {CURRENCIES.map(curr => (
+                      <option key={curr} value={curr}>{curr}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
+              </div>
+            </>
+          ) : null}
+
+          {!formRule.external && (
+            <>
+              <label className="block text-purple-200 text-sm mb-2">Transfer To</label>
+              <select
+                value={formRule.toAccountId}
+                onChange={(e) => handleChange('toAccountId', e.target.value)}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+              >
+                <option value="">Select Account</option>
+                {accounts
+                  .filter(acc => !formRule.fromAccountId || String(acc.id) !== String(formRule.fromAccountId))
+                  .map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+
+          {formRule.external && formRule.direction === 'output' && (
+            <div className="mt-2">
+              <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
+              <input
+                type="text"
+                value={formRule.externalTarget}
+                onChange={(e) => handleChange('externalTarget', e.target.value)}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                placeholder="e.g., Mortgage, Bills"
+              />
             </div>
           )}
         </div>
 
-        <div>
-          <label className="block text-purple-200 text-sm mb-2">Frequency</label>
-          <select
-            value={formRule.frequency}
-            onChange={(e) => handleChange('frequency', e.target.value)}
-            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-          >
-            {FREQUENCIES.map(freq => (
-              <option key={freq} value={freq}>{freq}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-purple-200 text-sm mb-2">Frequency</label>
+            <select
+              value={formRule.frequency}
+              onChange={(e) => handleChange('frequency', e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+            >
+              {['one_time', ...FREQUENCIES].map(freq => (
+                <option key={freq} value={freq}>{freq}</option>
+              ))}
+            </select>
+          </div>
 
-      <div className="space-y-3 mb-4">
-        <label className="block text-purple-200 text-sm">Transfer To</label>
-        <select
-          value={formRule.toAccountId}
-          onChange={(e) => handleChange('toAccountId', e.target.value)}
-          className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-        >
-          <option value="">Select Account</option>
-          {accounts
-            .filter(acc => !formRule.fromAccountId || String(acc.id) !== String(formRule.fromAccountId))
-            .map(acc => (
-              <option key={acc.id} value={acc.id}>{acc.name}</option>
-            ))}
-        </select>
+          {formRule.frequency === 'one_time' ? (
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Date</label>
+              <input
+                type="date"
+                value={formRule.startDate}
+                onChange={(e) => handleChange('startDate', e.target.value)}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-purple-200 text-sm mb-2">Start Date</label>
+                <input
+                  type="date"
+                  value={formRule.startDate}
+                  onChange={(e) => handleChange('startDate', e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
+              <div>
+                <label className="block text-purple-200 text-sm mb-2">End Date (optional)</label>
+                <input
+                  type="date"
+                  value={formRule.endDate}
+                  onChange={(e) => handleChange('endDate', e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2">

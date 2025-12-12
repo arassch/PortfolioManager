@@ -19,10 +19,11 @@ class ProjectionController {
     const actualByAccountYear = {};
     portfolio.accounts.forEach(account => {
       const entries = portfolio.actualValues[account.id] || {};
+      const isSelected = selectedAccounts[account.id] !== false; // default to included when not specified
       Object.entries(entries).forEach(([key, val]) => {
         const numKey = Number(key);
         const yearValue = numKey >= 1900 ? numKey : currentYear + numKey;
-        if (!selectedAccounts[account.id]) return;
+        if (!isSelected) return;
         const baseVal = CurrencyService.convertToBase(val, account.currency, portfolio.baseCurrency);
         actualTotalsByYear[yearValue] = (actualTotalsByYear[yearValue] || 0) + baseVal;
         if (!actualByAccountYear[yearValue]) actualByAccountYear[yearValue] = {};
@@ -125,20 +126,20 @@ class ProjectionController {
           });
 
           // Apply monthly transfers
-          portfolio.transferRules.forEach(rule => {
-            if (rule.frequency === 'monthly') {
-              this.applyTransfer(
-                rule,
-                portfolio,
-                accountBalances,
-                monthNetGain,
-                transferTotals,
-                portfolio.baseCurrency,
-                taxRate,
-                accountBasis
-              );
-            }
-          });
+      portfolio.transferRules.forEach(rule => {
+        if (this.shouldApplyRule(rule, year, month, true)) {
+          this.applyTransfer(
+            rule,
+            portfolio,
+            accountBalances,
+            monthNetGain,
+            transferTotals,
+            portfolio.baseCurrency,
+            taxRate,
+            accountBasis
+          );
+        }
+      });
 
           // Update month starting balances after transfers
           portfolio.accounts.forEach(account => {
@@ -147,8 +148,9 @@ class ProjectionController {
         }
 
         // Apply annual transfers at year end
+        const annualMonth = 12;
         portfolio.transferRules.forEach(rule => {
-          if (rule.frequency === 'annual') {
+          if (this.shouldApplyRule(rule, year, annualMonth, false)) {
             this.applyTransfer(
               rule,
               portfolio,
@@ -166,7 +168,7 @@ class ProjectionController {
 
       // Calculate totals for this year
       portfolio.accounts.forEach(account => {
-        const isSelected = selectedAccounts[account.id];
+        const isSelected = selectedAccounts[account.id] !== false; // default to selected
 
         if (!isSelected) return;
 
@@ -219,6 +221,30 @@ class ProjectionController {
     return data;
   }
 
+  shouldApplyRule(rule, year, month, isMonthlyPhase) {
+    const dateToCheck = new Date(year, month - 1, 1);
+    const isOneTime = rule.frequency === 'one_time';
+    if (isOneTime) {
+      if (!rule.startDate) return false;
+      const one = new Date(rule.startDate);
+      return one.getFullYear() === year && one.getMonth() + 1 === month;
+    }
+
+    const freqMatch = isMonthlyPhase
+      ? rule.frequency === 'monthly'
+      : rule.frequency === 'annual';
+
+    if (rule.startDate) {
+      const start = new Date(rule.startDate);
+      if (dateToCheck < start) return false;
+    }
+    if (rule.endDate) {
+      const end = new Date(rule.endDate);
+      if (dateToCheck > end) return false;
+    }
+    return freqMatch;
+  }
+
   applyTransfer(rule, portfolio, accountBalances, periodGrowth, transferTotals, baseCurrency, taxRate, accountBasis) {
     let availableAmount = 0;
 
@@ -246,26 +272,40 @@ class ProjectionController {
     }
 
     const toAccountId = rule.toAccountId;
-    if (!toAccountId || accountBalances[toAccountId] === undefined) {
+    if (!toAccountId && !rule.toExternal && accountBalances[toAccountId] === undefined) {
       return;
     }
 
+    let netOut = availableAmount;
+    let basisMoved = 0;
+
     if (!rule.fromExternal && rule.fromAccountId) {
-      // Move basis proportionally when transferring between accounts
+      // Move basis proportionally when transferring between accounts; apply tax on gains if taxable
       const fromValue = accountBalances[rule.fromAccountId];
       const fromBasis = accountBasis[rule.fromAccountId] || 0;
       const proportion = fromValue > 0 ? Math.min(1, availableAmount / fromValue) : 1;
-      const basisMoved = fromBasis * proportion;
-      accountBalances[rule.fromAccountId] -= availableAmount;
+      basisMoved = fromBasis * proportion;
+      const gainPortion = Math.max(availableAmount - basisMoved, 0);
+      const fromAccount = portfolio.getAccountById(rule.fromAccountId);
+      const taxableRate = fromAccount?.taxable ? (taxRate / 100) : 0;
+      const tax = gainPortion * taxableRate;
+      netOut = Math.max(availableAmount - tax, 0);
+      accountBalances[rule.fromAccountId] -= (netOut + tax);
       accountBasis[rule.fromAccountId] = Math.max(0, fromBasis - basisMoved);
-      transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - availableAmount;
-      accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + basisMoved;
+      transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - netOut - tax;
     } else if (rule.fromExternal) {
       // External contribution increases basis on the target
-      accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + availableAmount;
+      basisMoved = availableAmount;
     }
-    accountBalances[toAccountId] += availableAmount;
-    transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + availableAmount;
+
+    if (rule.toExternal) {
+      // outbound only; no destination balance
+      return;
+    }
+
+    accountBalances[toAccountId] += netOut;
+    transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + netOut;
+    accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + basisMoved;
   }
 
   calculateAfterTaxValue(currentValue, costBasis, taxTreatment, taxRate) {
