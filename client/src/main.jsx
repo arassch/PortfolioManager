@@ -682,16 +682,16 @@ function PortfolioManager({ auth }) {
             >
               Logout
             </button>
-            <button
-              onClick={() => {
-                if (window.confirm('This will delete your account and all associated data. Continue?')) {
-                  auth?.deleteAccount();
-                }
-              }}
-              className="text-sm px-3 py-1 bg-red-600/80 border border-red-400/50 rounded-lg hover:bg-red-700 transition text-white"
-            >
-              Delete account
-            </button>
+          <button
+            onClick={() => {
+              if (window.confirm('This will delete your account and all associated data. Continue?')) {
+                auth?.deleteAccount();
+              }
+            }}
+            className="text-sm px-3 py-1 bg-red-900/60 hover:bg-red-800/70 border border-red-400/30 rounded-lg text-white transition"
+          >
+            Delete account
+          </button>
           </div>
         </div>
         <div className="mb-8 text-center">
@@ -758,7 +758,7 @@ function PortfolioManager({ auth }) {
                   <button
                     onClick={() => handleDeleteProjection(targetProjectionId)}
                     disabled={!targetProjectionId || (portfolio.projections || []).length <= 1}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600/80 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg transition-all text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-900/60 hover:bg-red-800/70 disabled:opacity-50 text-white rounded-lg transition-all text-sm border border-red-400/30"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete

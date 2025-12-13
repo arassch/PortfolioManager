@@ -173,7 +173,10 @@ export function AccountItem({
               <Edit2 className="w-4 h-4" />
             </button>
           )}
-          <button onClick={() => onDelete(account.id)} className="p-2 text-red-400 hover:text-red-300">
+          <button
+            onClick={() => onDelete(account.id)}
+            className="p-2 rounded-lg bg-white/5 border border-white/20 text-red-300 hover:text-red-200 hover:bg-white/10 transition"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
