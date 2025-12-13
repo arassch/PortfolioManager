@@ -393,6 +393,7 @@ function PortfolioManager({ auth }) {
       updatePortfolio(updatedPortfolio);
       await savePortfolio(updatedPortfolio);
       setShowAddRule(false);
+      setEditingRuleId(null);
     } catch (error) {
       alert(error.message);
     }
@@ -412,6 +413,7 @@ function PortfolioManager({ auth }) {
       updatePortfolio(updatedPortfolio);
       await savePortfolio(updatedPortfolio);
       setEditingRuleId(null);
+      setShowAddRule(false);
     } catch (error) {
       alert(error.message);
     }

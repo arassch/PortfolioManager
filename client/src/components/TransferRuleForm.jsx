@@ -26,15 +26,36 @@ export function TransferRuleForm({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const initialCurrency = rule?.externalCurrency || baseCurrency;
-  const [formRule, setFormRule] = useState(rule ? { ...DEFAULT_RULE, ...rule, startDate: rule.startDate || today, externalCurrency: initialCurrency } : { ...DEFAULT_RULE, startDate: today, externalCurrency: initialCurrency });
+  const normalizeDate = (val) => {
+    if (!val) return '';
+    return typeof val === 'string' && val.includes('T') ? val.split('T')[0] : val;
+  };
+  const buildInitial = (incoming) => {
+    const base = { ...DEFAULT_RULE, ...incoming };
+    // Infer external flag/direction from fromExternal/toExternal if not provided
+    let external = base.external;
+    let direction = base.direction;
+    if (base.fromExternal) {
+      external = true;
+      direction = 'input';
+    } else if (base.toExternal) {
+      external = true;
+      direction = 'output';
+    }
+    return {
+      ...base,
+      startDate: normalizeDate(base.startDate) || today,
+      endDate: normalizeDate(base.endDate) || '',
+      externalCurrency: base.externalCurrency || baseCurrency,
+      external,
+      direction
+    };
+  };
+  const [formRule, setFormRule] = useState(buildInitial(rule));
 
   useEffect(() => {
-    if (rule) {
-      setFormRule({ ...DEFAULT_RULE, ...rule, startDate: rule.startDate || today, externalCurrency: rule.externalCurrency || baseCurrency });
-    } else {
-      setFormRule({ ...DEFAULT_RULE, startDate: today, externalCurrency: baseCurrency });
-    }
-  }, [rule]);
+    setFormRule(buildInitial(rule));
+  }, [rule, baseCurrency]);
 
   const handleChange = (field, value) => {
     setFormRule(prev => {

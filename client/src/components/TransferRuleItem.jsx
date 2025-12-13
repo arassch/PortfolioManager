@@ -8,6 +8,14 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   const isExternalOutcome = (rule.toExternal === true || rule.direction === 'output') && !toAccount;
   const isExternalIncome = rule.fromExternal === true || rule.direction === 'input';
   const externalLabel = rule.externalTarget || 'External';
+  const dateLabel = (() => {
+    const start = rule.startDate ? new Date(rule.startDate).toISOString().slice(0,10) : null;
+    const end = rule.endDate ? new Date(rule.endDate).toISOString().slice(0,10) : null;
+    if (rule.frequency === 'one_time' && start) return `(${start})`;
+    if (start && end) return `(${start} → ${end})`;
+    if (start) return `(${start})`;
+    return '';
+  })();
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20">
@@ -54,13 +62,16 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => onEdit(rule)} className="p-2 text-blue-400 hover:text-blue-300">
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => onDelete(rule.id)} className="p-2 text-red-400 hover:text-red-300">
-            <Trash2 className="w-4 h-4" />
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          {dateLabel && <span className="text-purple-300 text-xs">{dateLabel}</span>}
+          <div className="flex gap-2">
+            <button onClick={() => onEdit(rule)} className="p-2 text-blue-400 hover:text-blue-300">
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button onClick={() => onDelete(rule.id)} className="p-2 text-red-400 hover:text-red-300">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

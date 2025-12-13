@@ -539,7 +539,7 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       toAccountId: rule.to_account_id,
       toExternal: rule.to_external,
       externalTarget: rule.external_target,
-      frequency: rule.frequency || (rule.one_time_at ? 'one_time' : rule.frequency),
+      frequency: rule.frequency || (rule.one_time_at ? 'one_time' : 'annual'),
       startDate: rule.start_date || rule.one_time_at,
       endDate: rule.end_date,
       externalAmount: Number(rule.external_amount || 0),
@@ -653,8 +653,6 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           throw new Error(`Unknown destination account id ${rule.toAccountId}`);
         }
 
-        const isOneTime = rule.frequency === 'one_time';
-
         await client.query(
           `INSERT INTO transfer_rules (
             portfolio_id,
@@ -675,10 +673,10 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
            RETURNING id`,
           [
             portfolioId,
-            isOneTime ? null : rule.frequency,
+            rule.frequency || 'annual',
             rule.startDate || null,
-            isOneTime ? null : (rule.endDate || null),
-            isOneTime ? (rule.startDate || null) : null,
+            rule.frequency === 'one_time' ? null : (rule.endDate || null),
+            rule.frequency === 'one_time' ? (rule.startDate || null) : null,
             rule.fromExternal || false,
             fromAccountId,
             toAccountId,
