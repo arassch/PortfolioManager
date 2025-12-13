@@ -9,8 +9,8 @@ class ValidationService {
       errors.push('Account name is required');
     }
     
-    if (account.balance <= 0) {
-      errors.push('Balance must be greater than 0');
+    if (account.balance < 0 || isNaN(account.balance)) {
+      errors.push('Balance cannot be negative');
     }
     
     if (!account.currency) {

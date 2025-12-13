@@ -9,7 +9,7 @@ const DEFAULT_RULE = {
   direction: 'internal', // 'internal' | 'input' | 'output'
   externalTarget: '',
   externalAmount: 0,
-  externalCurrency: 'USD',
+  externalCurrency: null,
   frequency: 'annual', // 'annual' | 'monthly' | 'one_time'
   startDate: '',
   endDate: '',
@@ -81,6 +81,7 @@ export function TransferRuleForm({
       cleaned.fromExternal = false;
       cleaned.toExternal = true;
     }
+    cleaned.externalCurrency = cleaned.externalCurrency || baseCurrency;
     onSubmit(cleaned);
   };
 

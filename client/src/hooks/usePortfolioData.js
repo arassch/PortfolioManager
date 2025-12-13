@@ -30,9 +30,24 @@ export function usePortfolioData(isAuthenticated) {
       return;
     }
     setIsLoading(true);
+    const prevActiveId = portfolio?.activeProjectionId;
+    const prevProjectionCount = portfolio?.projections?.length || 0;
     const data = await StorageService.loadPortfolio();
     if (data) {
-      setPortfolio(new Portfolio(data));
+      setPortfolio(prev => {
+        const raw = data instanceof Portfolio ? data.toJSON() : data;
+        const nextActive =
+          (prevActiveId && raw.projections?.some(p => String(p.id) === String(prevActiveId)))
+            ? prevActiveId
+            : raw.activeProjectionId ||
+              (raw.projections && raw.projections.length > prevProjectionCount
+                ? raw.projections[raw.projections.length - 1]?.id
+                : raw.projections?.[0]?.id);
+        return new Portfolio({
+          ...raw,
+          activeProjectionId: nextActive
+        });
+      });
     }
     setIsLoading(false);
   };

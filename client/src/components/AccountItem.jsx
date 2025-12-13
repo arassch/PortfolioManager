@@ -7,13 +7,15 @@ export function AccountItem({
   isEditing, 
   onStartEdit, 
   onSaveEdit, 
+  onSaveProjectionValue,
   onFinishEdit,
   onDelete, 
   onAddActualValue,
   onDeleteActualValue,
   actualValues = {},
   showActualValueInput,
-  onToggleActualValueInput
+  onToggleActualValueInput,
+  enableProjectionFields = true
 }) {
   const [year, setYear] = useState('');
   const [value, setValue] = useState('');
@@ -39,6 +41,8 @@ export function AccountItem({
 
   const yieldRate = account.type === 'cash' ? account.interestRate : account.yield;
   const yieldLabel = account.type === 'cash' ? 'Interest' : 'Yield';
+  const saveProjection = onSaveProjectionValue || onSaveEdit;
+  const canEditYield = isEditing && enableProjectionFields;
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
@@ -87,12 +91,12 @@ export function AccountItem({
             </div>
             <div>
               <span className="text-purple-200">{yieldLabel}: </span>
-              {isEditing ? (
+              {canEditYield ? (
                 <input
                   type="number"
                   step="0.1"
                   value={yieldRate}
-                  onChange={(e) => onSaveEdit(
+                  onChange={(e) => saveProjection(
                     account.id,
                     account.type === 'cash' ? 'interestRate' : 'yield',
                     parseFloat(e.target.value) || 0
@@ -100,7 +104,12 @@ export function AccountItem({
                   className="w-16 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
                 />
               ) : (
-                <span className="text-white font-semibold">{yieldRate}%</span>
+                <span className="text-white font-semibold">
+                  {yieldRate}%
+                  {isEditing && !enableProjectionFields && (
+                    <span className="text-purple-300 text-xs ml-2">(edit in projection tabs)</span>
+                  )}
+                </span>
               )}
             </div>
             <div>

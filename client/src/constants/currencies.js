@@ -26,7 +26,6 @@ export const AMOUNT_TYPES = ['fixed', 'earnings'];
 
 export const DEFAULT_SETTINGS = {
   projectionYears: 10,
-  defaultInvestmentYield: 7,
   taxRate: 25,
   baseCurrency: 'USD'
 };

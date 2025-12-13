@@ -38,8 +38,11 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
     }
     
     const balanceNum = parseCurrencyInput(account.balance);
-    if (!account.balance || isNaN(balanceNum) || balanceNum <= 0) {
-      newErrors.push('Balance must be greater than 0');
+    if (account.balance === '' || isNaN(balanceNum)) {
+      newErrors.push('Balance must be a valid number');
+    }
+    if (balanceNum < 0) {
+      newErrors.push('Balance cannot be negative');
     }
     
     if (!account.currency) {

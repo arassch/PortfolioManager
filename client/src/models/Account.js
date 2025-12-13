@@ -17,7 +17,7 @@ export class Account {
   }
 
   isValid() {
-    return this.name && this.balance > 0 && this.currency;
+    return this.name && this.balance >= 0 && this.currency;
   }
 
   getYieldRate() {

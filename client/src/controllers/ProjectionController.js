@@ -13,6 +13,7 @@ class ProjectionController {
 
     const currentYear = new Date().getFullYear();
     const taxRate = portfolio.taxRate || 0;
+    const transferRules = portfolio.transferRules || [];
 
     // Build actuals by absolute year (with legacy offset support)
     const actualTotalsByYear = {};
@@ -99,7 +100,7 @@ class ProjectionController {
 
       // Accounts whose earnings are sent away (no compounding on balance)
       const earningsTransferAccounts = new Set(
-        portfolio.transferRules
+        transferRules
           .filter(r => r.amountType === 'earnings' && !r.fromExternal && r.fromAccountId)
           .map(r => r.fromAccountId)
       );
@@ -111,7 +112,8 @@ class ProjectionController {
         for (let month = 1; month <= 12; month++) {
           const monthNetGain = {};
           portfolio.accounts.forEach(account => {
-            const rate = account.getYieldRate() || portfolio.defaultInvestmentYield;
+            const yieldRate = account.getYieldRate();
+            const rate = yieldRate != null ? yieldRate : 0;
             const monthlyRate = rate / 100 / 12;
             // If this account sends earnings away, base gains on start-of-year balance (no compounding)
             const gainBase = earningsTransferAccounts.has(account.id)
@@ -126,7 +128,7 @@ class ProjectionController {
           });
 
           // Apply monthly transfers
-      portfolio.transferRules.forEach(rule => {
+      transferRules.forEach(rule => {
         if (this.shouldApplyRule(rule, year, month, true)) {
           this.applyTransfer(
             rule,
@@ -149,7 +151,7 @@ class ProjectionController {
 
         // Apply annual transfers at year end
         const annualMonth = 12;
-        portfolio.transferRules.forEach(rule => {
+        transferRules.forEach(rule => {
           if (this.shouldApplyRule(rule, year, annualMonth, false)) {
             this.applyTransfer(
               rule,

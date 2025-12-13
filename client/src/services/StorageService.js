@@ -13,10 +13,16 @@ class StorageService {
       ...options
     });
 
-    if (res.status === 401 && allowRetry) {
+    if ((res.status === 401 || res.status === 403) && allowRetry) {
       try {
         await AuthService.refresh();
-        return this.requestWithRefresh(path, options, false);
+        const refreshedHeaders = {
+          ...(options.headers || {})
+        };
+        if (refreshedHeaders['x-csrf-token'] !== undefined) {
+          refreshedHeaders['x-csrf-token'] = AuthService.getCsrfToken() || '';
+        }
+        return this.requestWithRefresh(path, { ...options, headers: refreshedHeaders }, false);
       } catch (err) {
         throw new Error('Unauthorized');
       }
@@ -46,9 +52,41 @@ class StorageService {
   async savePortfolio(portfolioData) {
     const query = `${API_URL}/api/portfolio`;
     try {
+      const sanitizeRule = (rule) => ({
+        ...rule,
+        fromAccountId: rule.fromAccountId || null,
+        toAccountId: rule.toAccountId || null,
+        startDate: rule.startDate ? rule.startDate : null,
+        endDate: rule.endDate ? rule.endDate : null
+      });
+
+      const sanitized = {
+        ...portfolioData,
+        taxRate: portfolioData.taxRate != null ? Number(portfolioData.taxRate) : portfolioData.taxRate,
+        projectionYears: portfolioData.projectionYears != null ? Number(portfolioData.projectionYears) : portfolioData.projectionYears,
+        accounts: (portfolioData.accounts || []).map(acc => ({
+          ...acc,
+          balance: Number(acc.balance),
+          interestRate: acc.interestRate != null ? Number(acc.interestRate) : acc.interestRate,
+          yield: acc.yield != null ? Number(acc.yield) : acc.yield
+        })),
+        projections: (portfolioData.projections || []).map(proj => {
+          const INT_MAX = 2147483647;
+          const safeId = Number.isFinite(proj.id) && Math.abs(proj.id) <= INT_MAX ? proj.id : null;
+          return {
+            ...proj,
+            id: safeId,
+            taxRate: proj.taxRate != null ? Number(proj.taxRate) : proj.taxRate,
+            projectionYears: proj.projectionYears != null ? Number(proj.projectionYears) : proj.projectionYears,
+            transferRules: (proj.transferRules || []).map(sanitizeRule)
+          };
+        }),
+        transferRules: (portfolioData.transferRules || []).map(sanitizeRule)
+      };
+
       let body;
       try {
-        body = JSON.stringify(portfolioData);
+        body = JSON.stringify(sanitized);
         console.log("Sending data to server:", body);
       } catch (e) {
         console.error("Failed to stringify portfolio data. Check for circular references.", portfolioData);

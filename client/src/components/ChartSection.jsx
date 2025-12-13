@@ -15,8 +15,9 @@ export function ChartSection({
   showIndividualAccounts,
   activeTab,
   baseCurrency,
-  defaultInvestmentYield,
   taxRate,
+  projectionName,
+  accountFilterHint,
   onTabChange,
   onToggleAccount,
   onToggleIndividualAccounts
@@ -48,7 +49,7 @@ export function ChartSection({
           (typeof acc.getYieldRate === 'function' ? acc.getYieldRate() : null) ??
           acc.interestRate ??
           acc.yield ??
-          defaultInvestmentYield;
+          0;
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
@@ -244,7 +245,14 @@ export function ChartSection({
 
   return (
     <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+        <div>
+          <p className="text-xs uppercase text-purple-200 tracking-wide">Projection view</p>
+          <h4 className="text-white font-semibold">{projectionName || 'Active Projection'}</h4>
+          <p className="text-purple-200 text-xs">
+            {accountFilterHint || 'Account filters carry across projections and charts.'}
+          </p>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => onTabChange('growth')}

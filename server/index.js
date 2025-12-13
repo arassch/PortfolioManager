@@ -292,6 +292,23 @@ const normalizeAccount = (row) => ({
   taxable: row.taxable,
 });
 
+const normalizeTransferRule = (row) => ({
+  id: row.id,
+  projectionId: row.projection_id,
+  portfolioId: row.portfolio_id,
+  fromExternal: row.from_external,
+  fromAccountId: row.from_account_id,
+  toAccountId: row.to_account_id,
+  toExternal: row.to_external,
+  externalTarget: row.external_target,
+  frequency: row.frequency || (row.one_time_at ? 'one_time' : 'annual'),
+  startDate: row.start_date || row.one_time_at,
+  endDate: row.end_date,
+  externalAmount: Number(row.external_amount || 0),
+  externalCurrency: row.external_currency,
+  amountType: row.amount_type
+});
+
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
@@ -507,8 +524,6 @@ app.delete('/api/user', authenticate, requireCsrf, asyncHandler(async (req, res)
 app.get('/api/portfolio', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
-    
-    // Get portfolio
     const portfolioRes = await pool.query(
       'SELECT * FROM portfolios WHERE user_id = $1',
       [userId]
@@ -520,58 +535,100 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
     
     const portfolio = portfolioRes.rows[0];
     
-    // Get accounts
+    // Accounts shared across projections
     const accountsRes = await pool.query(
       'SELECT * FROM accounts WHERE portfolio_id = $1',
       [portfolio.id]
     );
-    
-    // Get transfer rules
-    const rulesRes = await pool.query(
-      'SELECT * FROM transfer_rules WHERE portfolio_id = $1',
+    const accounts = accountsRes.rows.map(normalizeAccount);
+    const accountIds = accounts.map(a => a.id);
+
+    // Projections (ensure at least one)
+    let projectionsRes = await pool.query(
+      'SELECT * FROM projections WHERE portfolio_id = $1 ORDER BY created_at ASC',
       [portfolio.id]
     );
-    const transferRules = rulesRes.rows.map(rule => ({
-      id: rule.id,
-      portfolioId: rule.portfolio_id,
-      fromExternal: rule.from_external,
-      fromAccountId: rule.from_account_id,
-      toAccountId: rule.to_account_id,
-      toExternal: rule.to_external,
-      externalTarget: rule.external_target,
-      frequency: rule.frequency || (rule.one_time_at ? 'one_time' : 'annual'),
-      startDate: rule.start_date || rule.one_time_at,
-      endDate: rule.end_date,
-      externalAmount: Number(rule.external_amount || 0),
-      externalCurrency: rule.external_currency,
-      amountType: rule.amount_type
-    }));
-    
-    // Get actual values
-    const actualRes = await pool.query(
-      'SELECT * FROM actual_values WHERE account_id = ANY($1)',
-      [accountsRes.rows.map(a => a.id)]
-    );
-    
-  const actualValues = {};
-  actualRes.rows.forEach(row => {
-    if (!actualValues[row.account_id]) {
-      actualValues[row.account_id] = {};
+    if (projectionsRes.rows.length === 0) {
+      const created = await pool.query(
+        `INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [portfolio.id, 'Projection 1', portfolio.default_investment_yield, portfolio.tax_rate, portfolio.projection_years]
+      );
+      projectionsRes = { rows: [created.rows[0]] };
     }
-    actualValues[row.account_id][row.year_index] = Number(row.value);
-  });
+    const projectionRows = projectionsRes.rows;
+    const projectionIds = projectionRows.map(p => p.id);
+
+    // Transfer rules grouped per projection
+    const rulesRes = projectionIds.length > 0
+      ? await pool.query(
+          'SELECT * FROM transfer_rules WHERE projection_id = ANY($1)',
+          [projectionIds]
+        )
+      : { rows: [] };
+    const rulesByProjection = new Map();
+    rulesRes.rows.forEach(rule => {
+      const normalized = normalizeTransferRule(rule);
+      const list = rulesByProjection.get(rule.projection_id) || [];
+      list.push(normalized);
+      rulesByProjection.set(rule.projection_id, list);
+    });
+
+    // Per-projection account overrides
+    const overridesRes = projectionIds.length > 0
+      ? await pool.query(
+          'SELECT * FROM projection_accounts WHERE projection_id = ANY($1)',
+          [projectionIds]
+        )
+      : { rows: [] };
+    const overridesByProjection = {};
+    overridesRes.rows.forEach(row => {
+      if (!overridesByProjection[row.projection_id]) {
+        overridesByProjection[row.projection_id] = {};
+      }
+      overridesByProjection[row.projection_id][row.account_id] = {
+        yield: Number(row.yield_rate || 0),
+        interestRate: Number(row.interest_rate || 0)
+      };
+    });
+
+    // Actual values shared across projections
+    const actualRes = accountIds.length > 0
+      ? await pool.query(
+          'SELECT * FROM actual_values WHERE account_id = ANY($1)',
+          [accountIds]
+        )
+      : { rows: [] };
+    const actualValues = {};
+    actualRes.rows.forEach(row => {
+      if (!actualValues[row.account_id]) {
+        actualValues[row.account_id] = {};
+      }
+      actualValues[row.account_id][row.year_index] = Number(row.value);
+    });
   
-  res.json({
-    id: portfolio.id,
-    userId: portfolio.user_id,
-    baseCurrency: portfolio.base_currency,
-    defaultInvestmentYield: portfolio.default_investment_yield,
-    taxRate: portfolio.tax_rate,
-    projectionYears: portfolio.projection_years,
-    accounts: accountsRes.rows.map(normalizeAccount),
-    transferRules,
-    actualValues
-  });
+    res.json({
+      id: portfolio.id,
+      userId: portfolio.user_id,
+      baseCurrency: portfolio.base_currency,
+      defaultInvestmentYield: portfolio.default_investment_yield,
+      taxRate: portfolio.tax_rate,
+      projectionYears: portfolio.projection_years,
+      accounts,
+      actualValues,
+      projections: projectionRows.map(p => ({
+        id: p.id,
+        portfolioId: p.portfolio_id,
+        name: p.name,
+        projectionYears: p.projection_years,
+        defaultInvestmentYield: p.default_investment_yield,
+        taxRate: p.tax_rate,
+        createdAt: p.created_at,
+        transferRules: rulesByProjection.get(p.id) || [],
+        accountOverrides: overridesByProjection[p.id] || {}
+      }))
+    });
   } catch (error) {
     console.error('Error fetching portfolio:', error);
     // Ensure CORS headers are on error responses too
@@ -583,7 +640,15 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
 
 app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, res, next) => {
   const userId = req.userId;
-  const { accounts = [], transferRules = [], actualValues = {}, ...portfolioSettings } = req.body;
+  const {
+    accounts = [],
+    actualValues = {},
+    projections = [],
+    baseCurrency,
+    defaultInvestmentYield,
+    taxRate,
+    projectionYears
+  } = req.body;
     
     const client = await pool.connect();
     try {
@@ -598,7 +663,8 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         throw new Error('User not found');
       }
       
-      // Upsert portfolio
+      const primaryProjection = projections[0] || {};
+      // Upsert portfolio (base settings stay on parent record)
       const portfolioRes = await client.query(
         `INSERT INTO portfolios (user_id, base_currency, default_investment_yield, tax_rate, projection_years)
          VALUES ($1, $2, $3, $4, $5)
@@ -611,17 +677,27 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
          RETURNING id`,
         [
           userId,
-          portfolioSettings.baseCurrency,
-          portfolioSettings.defaultInvestmentYield,
-          portfolioSettings.taxRate,
-          portfolioSettings.projectionYears,
+          baseCurrency,
+          primaryProjection.defaultInvestmentYield ?? defaultInvestmentYield,
+          primaryProjection.taxRate ?? taxRate,
+          primaryProjection.projectionYears ?? projectionYears,
         ]
       );
       const portfolioId = portfolioRes.rows[0].id;
 
-      // Clear old data
-      await client.query('DELETE FROM transfer_rules WHERE portfolio_id = $1', [portfolioId]);
-      // Also delete actual_values linked to the accounts being deleted
+      const projectionsPayload = projections.length > 0 ? projections : [{
+        name: 'Projection 1',
+        projectionYears: projectionYears ?? 10,
+        defaultInvestmentYield: defaultInvestmentYield ?? 7,
+        taxRate: taxRate ?? 0,
+        transferRules: [],
+        accountOverrides: {},
+        createdAt: new Date().toISOString()
+      }];
+
+      // Clean dependent tables; will be repopulated
+      await client.query('DELETE FROM transfer_rules WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
+      await client.query('DELETE FROM projection_accounts WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM actual_values WHERE account_id IN (SELECT id FROM accounts WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM accounts WHERE portfolio_id = $1', [portfolioId]);
 
@@ -642,51 +718,131 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         accountIdMap.set(String(account.id), accountRes.rows[0].id);
       }
 
-      // Insert transfer rules with new account IDs
-      for (const rule of transferRules) {
-        const fromAccountId = rule.fromExternal
-          ? null
-          : (rule.fromAccountId ? accountIdMap.get(String(rule.fromAccountId)) : null);
-        const toAccountId = rule.toExternal ? null : accountIdMap.get(String(rule.toAccountId));
-
-        if (!rule.toExternal && !toAccountId && !rule.fromExternal) {
-          throw new Error(`Unknown destination account id ${rule.toAccountId}`);
+      // Upsert projections and map any temporary IDs
+      const projectionIdMap = new Map();
+      for (const proj of projectionsPayload) {
+        const createdAt = proj.createdAt ? new Date(proj.createdAt) : new Date();
+        if (proj.id) {
+          const updated = await client.query(
+            `UPDATE projections
+             SET name = $1,
+                 default_investment_yield = $2,
+                 tax_rate = $3,
+                 projection_years = $4
+             WHERE id = $5 AND portfolio_id = $6
+             RETURNING id`,
+            [
+              proj.name || 'Projection',
+              proj.defaultInvestmentYield ?? defaultInvestmentYield ?? 7,
+              proj.taxRate ?? taxRate ?? 0,
+              proj.projectionYears ?? projectionYears ?? 10,
+              proj.id,
+              portfolioId
+            ]
+          );
+          if (updated.rowCount > 0) {
+            projectionIdMap.set(String(proj.id), updated.rows[0].id);
+            continue;
+          }
         }
-
-        await client.query(
-          `INSERT INTO transfer_rules (
-            portfolio_id,
-            frequency,
-            start_date,
-            end_date,
-            one_time_at,
-            from_external,
-            from_account_id,
-            to_account_id,
-            to_external,
-            external_target,
-            external_amount,
-            external_currency,
-            amount_type
-          )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        const inserted = await client.query(
+          `INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id`,
           [
             portfolioId,
-            rule.frequency || 'annual',
-            rule.startDate || null,
-            rule.frequency === 'one_time' ? null : (rule.endDate || null),
-            rule.frequency === 'one_time' ? (rule.startDate || null) : null,
-            rule.fromExternal || false,
-            fromAccountId,
-            toAccountId,
-            rule.toExternal || false,
-            rule.externalTarget || null,
-            rule.externalAmount,
-            rule.externalCurrency,
-            rule.amountType
+            proj.name || 'Projection',
+            proj.defaultInvestmentYield ?? defaultInvestmentYield ?? 7,
+            proj.taxRate ?? taxRate ?? 0,
+            proj.projectionYears ?? projectionYears ?? 10,
+            createdAt
           ]
         );
+        projectionIdMap.set(String(proj.id || inserted.rows[0].id), inserted.rows[0].id);
+      }
+
+      const dbProjectionIds = Array.from(projectionIdMap.values());
+      if (dbProjectionIds.length > 0) {
+        await client.query('DELETE FROM transfer_rules WHERE projection_id = ANY($1)', [dbProjectionIds]);
+        await client.query('DELETE FROM projection_accounts WHERE projection_id = ANY($1)', [dbProjectionIds]);
+        await client.query(
+          'DELETE FROM projections WHERE portfolio_id = $1 AND id != ALL($2)',
+          [portfolioId, dbProjectionIds]
+        );
+      }
+
+      // Insert per-projection account overrides and transfer rules
+      for (const proj of projectionsPayload) {
+        const dbProjId = projectionIdMap.get(String(proj.id)) || projectionIdMap.get(proj.id) || null;
+        if (!dbProjId) continue;
+
+        const overrides = proj.accountOverrides || {};
+        for (const [accountId, override] of Object.entries(overrides)) {
+          const dbAccountId = accountIdMap.get(String(accountId));
+          if (!dbAccountId) {
+            throw new Error(`Unknown account id ${accountId} for projection overrides`);
+          }
+          await client.query(
+            `INSERT INTO projection_accounts (projection_id, account_id, yield_rate, interest_rate)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (projection_id, account_id)
+             DO UPDATE SET yield_rate = EXCLUDED.yield_rate, interest_rate = EXCLUDED.interest_rate`,
+            [
+              dbProjId,
+              dbAccountId,
+              override.yield ?? override.yieldRate ?? 0,
+              override.interestRate ?? 0
+            ]
+          );
+        }
+
+        for (const rule of proj.transferRules || []) {
+          const fromAccountId = rule.fromExternal
+            ? null
+            : (rule.fromAccountId ? accountIdMap.get(String(rule.fromAccountId)) : null);
+          const toAccountId = rule.toExternal ? null : accountIdMap.get(String(rule.toAccountId));
+
+          if (!rule.toExternal && !toAccountId && !rule.fromExternal) {
+            throw new Error(`Unknown destination account id ${rule.toAccountId}`);
+          }
+
+          await client.query(
+            `INSERT INTO transfer_rules (
+              portfolio_id,
+              projection_id,
+              frequency,
+              start_date,
+              end_date,
+              one_time_at,
+              from_external,
+              from_account_id,
+              to_account_id,
+              to_external,
+              external_target,
+              external_amount,
+              external_currency,
+              amount_type
+            )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             RETURNING id`,
+            [
+              portfolioId,
+              dbProjId,
+              rule.frequency || 'annual',
+              rule.startDate || null,
+              rule.frequency === 'one_time' ? null : (rule.endDate || null),
+              rule.frequency === 'one_time' ? (rule.startDate || null) : null,
+              rule.fromExternal || false,
+              fromAccountId,
+              toAccountId,
+              rule.toExternal || false,
+              rule.externalTarget || null,
+              rule.externalAmount,
+              rule.externalCurrency,
+              rule.amountType
+            ]
+          );
+        }
       }
 
       // Upsert actual values against the remapped account IDs
@@ -748,6 +904,14 @@ app.get('/api/seed', async (req, res) => {
         [userId, 'USD', 7, 15, 10]
       );
       portfolioId = portfolioRes.rows[0].id;
+    }
+
+    const projectionCheck = await client.query('SELECT id FROM projections WHERE portfolio_id = $1', [portfolioId]);
+    if (projectionCheck.rows.length === 0) {
+      await client.query(
+        'INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years) VALUES ($1, $2, $3, $4, $5)',
+        [portfolioId, 'Projection 1', 7, 15, 10]
+      );
     }
 
     await client.query('COMMIT');

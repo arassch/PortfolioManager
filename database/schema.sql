@@ -37,6 +37,16 @@ CREATE TABLE portfolios (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE projections (
+  id SERIAL PRIMARY KEY,
+  portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL DEFAULT 'Projection',
+  default_investment_yield DECIMAL(5,2) DEFAULT 7.0,
+  tax_rate DECIMAL(5,2) DEFAULT 0,
+  projection_years INTEGER DEFAULT 10,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE accounts (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
@@ -51,9 +61,20 @@ CREATE TABLE accounts (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE projection_accounts (
+  id SERIAL PRIMARY KEY,
+  projection_id INTEGER NOT NULL REFERENCES projections(id) ON DELETE CASCADE,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  yield_rate DECIMAL(5,2),
+  interest_rate DECIMAL(5,2),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(projection_id, account_id)
+);
+
 CREATE TABLE transfer_rules (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  projection_id INTEGER NOT NULL REFERENCES projections(id) ON DELETE CASCADE,
   frequency VARCHAR(50), -- 'monthly' or 'annual'
   start_date DATE,
   end_date DATE,
@@ -81,6 +102,9 @@ CREATE TABLE actual_values (
 );
 
 CREATE INDEX idx_portfolios_user_id ON portfolios(user_id);
+CREATE INDEX idx_projections_portfolio_id ON projections(portfolio_id);
 CREATE INDEX idx_accounts_portfolio_id ON accounts(portfolio_id);
+CREATE INDEX idx_projection_accounts_projection_id ON projection_accounts(projection_id);
 CREATE INDEX idx_transfer_rules_portfolio_id ON transfer_rules(portfolio_id);
+CREATE INDEX idx_transfer_rules_projection_id ON transfer_rules(projection_id);
 CREATE INDEX idx_actual_values_account_id ON actual_values(account_id);
