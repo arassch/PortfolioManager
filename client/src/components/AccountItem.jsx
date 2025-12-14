@@ -15,7 +15,8 @@ export function AccountItem({
   actualValues = {},
   showActualValueInput,
   onToggleActualValueInput,
-  enableProjectionFields = true
+  enableProjectionFields = true,
+  showYield = true
 }) {
   const [year, setYear] = useState('');
   const [value, setValue] = useState('');
@@ -73,7 +74,7 @@ export function AccountItem({
               </span>
             )}
           </div>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
+          <div className={`grid gap-4 text-sm ${showYield ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>
               <span className="text-purple-200">Balance: </span>
               {isEditing ? (
@@ -89,29 +90,31 @@ export function AccountItem({
                 </span>
               )}
             </div>
-            <div>
-              <span className="text-purple-200">{yieldLabel}: </span>
-              {canEditYield ? (
-                <input
-                  type="number"
-                  step="0.1"
-                  value={yieldRate}
-                  onChange={(e) => saveProjection(
-                    account.id,
-                    account.type === 'cash' ? 'interestRate' : 'yield',
-                    parseFloat(e.target.value) || 0
-                  )}
-                  className="w-16 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
-                />
-              ) : (
-                <span className="text-white font-semibold">
-                  {yieldRate}%
-                  {isEditing && !enableProjectionFields && (
-                    <span className="text-purple-300 text-xs ml-2">(edit in projection tabs)</span>
-                  )}
-                </span>
-              )}
-            </div>
+            {showYield && (
+              <div>
+                <span className="text-purple-200">{yieldLabel}: </span>
+                {canEditYield ? (
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={yieldRate}
+                    onChange={(e) => saveProjection(
+                      account.id,
+                      account.type === 'cash' ? 'interestRate' : 'yield',
+                      parseFloat(e.target.value) || 0
+                    )}
+                    className="w-16 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
+                  />
+                ) : (
+                  <span className="text-white font-semibold">
+                    {yieldRate}%
+                    {isEditing && !enableProjectionFields && (
+                      <span className="text-purple-300 text-xs ml-2">(edit in projection tabs)</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            )}
             <div>
               <button
                 onClick={() => onToggleActualValueInput?.()}

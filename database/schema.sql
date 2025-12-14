@@ -30,7 +30,6 @@ CREATE TABLE portfolios (
   id SERIAL PRIMARY KEY,
   user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   base_currency VARCHAR(3) DEFAULT 'USD',
-  default_investment_yield DECIMAL(5,2) DEFAULT 7.0,
   tax_rate DECIMAL(5,2) DEFAULT 0,
   projection_years INTEGER DEFAULT 10,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -41,9 +40,6 @@ CREATE TABLE projections (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL DEFAULT 'Projection',
-  default_investment_yield DECIMAL(5,2) DEFAULT 7.0,
-  tax_rate DECIMAL(5,2) DEFAULT 0,
-  projection_years INTEGER DEFAULT 10,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

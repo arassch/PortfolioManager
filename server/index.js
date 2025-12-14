@@ -550,10 +550,10 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
     );
     if (projectionsRes.rows.length === 0) {
       const created = await pool.query(
-        `INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO projections (portfolio_id, name)
+         VALUES ($1, $2)
          RETURNING *`,
-        [portfolio.id, 'Projection 1', portfolio.default_investment_yield, portfolio.tax_rate, portfolio.projection_years]
+        [portfolio.id, 'Projection 1']
       );
       projectionsRes = { rows: [created.rows[0]] };
     }
@@ -612,7 +612,6 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       id: portfolio.id,
       userId: portfolio.user_id,
       baseCurrency: portfolio.base_currency,
-      defaultInvestmentYield: portfolio.default_investment_yield,
       taxRate: portfolio.tax_rate,
       projectionYears: portfolio.projection_years,
       accounts,
@@ -621,9 +620,8 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
         id: p.id,
         portfolioId: p.portfolio_id,
         name: p.name,
-        projectionYears: p.projection_years,
-        defaultInvestmentYield: p.default_investment_yield,
-        taxRate: p.tax_rate,
+        projectionYears: portfolio.projection_years,
+        taxRate: portfolio.tax_rate,
         createdAt: p.created_at,
         transferRules: rulesByProjection.get(p.id) || [],
         accountOverrides: overridesByProjection[p.id] || {}
@@ -645,7 +643,6 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     actualValues = {},
     projections = [],
     baseCurrency,
-    defaultInvestmentYield,
     taxRate,
     projectionYears
   } = req.body;
@@ -666,11 +663,10 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       const primaryProjection = projections[0] || {};
       // Upsert portfolio (base settings stay on parent record)
       const portfolioRes = await client.query(
-        `INSERT INTO portfolios (user_id, base_currency, default_investment_yield, tax_rate, projection_years)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO portfolios (user_id, base_currency, tax_rate, projection_years)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (user_id) DO UPDATE SET
            base_currency = EXCLUDED.base_currency,
-           default_investment_yield = EXCLUDED.default_investment_yield,
            tax_rate = EXCLUDED.tax_rate,
            projection_years = EXCLUDED.projection_years,
            updated_at = CURRENT_TIMESTAMP
@@ -678,7 +674,6 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         [
           userId,
           baseCurrency,
-          primaryProjection.defaultInvestmentYield ?? defaultInvestmentYield,
           primaryProjection.taxRate ?? taxRate,
           primaryProjection.projectionYears ?? projectionYears,
         ]
@@ -687,9 +682,6 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
 
       const projectionsPayload = projections.length > 0 ? projections : [{
         name: 'Projection 1',
-        projectionYears: projectionYears ?? 10,
-        defaultInvestmentYield: defaultInvestmentYield ?? 7,
-        taxRate: taxRate ?? 0,
         transferRules: [],
         accountOverrides: {},
         createdAt: new Date().toISOString()
@@ -725,17 +717,11 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         if (proj.id) {
           const updated = await client.query(
             `UPDATE projections
-             SET name = $1,
-                 default_investment_yield = $2,
-                 tax_rate = $3,
-                 projection_years = $4
-             WHERE id = $5 AND portfolio_id = $6
+             SET name = $1
+             WHERE id = $2 AND portfolio_id = $3
              RETURNING id`,
             [
               proj.name || 'Projection',
-              proj.defaultInvestmentYield ?? defaultInvestmentYield ?? 7,
-              proj.taxRate ?? taxRate ?? 0,
-              proj.projectionYears ?? projectionYears ?? 10,
               proj.id,
               portfolioId
             ]
@@ -746,15 +732,12 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           }
         }
         const inserted = await client.query(
-          `INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO projections (portfolio_id, name, created_at)
+           VALUES ($1, $2, $3)
            RETURNING id`,
           [
             portfolioId,
             proj.name || 'Projection',
-            proj.defaultInvestmentYield ?? defaultInvestmentYield ?? 7,
-            proj.taxRate ?? taxRate ?? 0,
-            proj.projectionYears ?? projectionYears ?? 10,
             createdAt
           ]
         );

@@ -883,20 +883,21 @@ function PortfolioManager({ auth }) {
                     account={account}
                     isEditing={editingAccountId === account.id}
                       onStartEdit={() => setEditingAccountId(account.id)}
-                      onDelete={() => handleDeleteAccount(account.id)}
-                      onFinishEdit={() => setEditingAccountId(null)}
-                      onSaveEdit={handleSaveAccountEdit}
-                      onSaveProjectionValue={handleSaveAccountEdit}
-                      onAddActualValue={handleAddActualValue}
-                      onDeleteActualValue={handleDeleteActualValue}
-                      actualValues={portfolio.actualValues[account.id] || {}}
-                      showActualValueInput={showActualInput === account.id}
-                      onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
+                    onDelete={() => handleDeleteAccount(account.id)}
+                    onFinishEdit={() => setEditingAccountId(null)}
+                    onSaveEdit={handleSaveAccountEdit}
+                    onSaveProjectionValue={handleSaveAccountEdit}
+                    onAddActualValue={handleAddActualValue}
+                    onDeleteActualValue={handleDeleteActualValue}
+                    actualValues={portfolio.actualValues[account.id] || {}}
+                    showActualValueInput={showActualInput === account.id}
+                    onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
                       enableProjectionFields={!isPortfolioSection}
+                      showYield={!isPortfolioSection}
                     />
                   </div>
-            ))}
-          </div>
+                ))}
+              </div>
 
           {portfolio.accounts.length === 0 && (
             <div className="text-center py-12 text-purple-200">
