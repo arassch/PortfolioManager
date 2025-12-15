@@ -416,12 +416,14 @@ function PortfolioManager({ auth }) {
 
   const handleSaveAccountEdit = async (accountId, field, value) => {
     const isProjectionField = field === 'yield' || field === 'interestRate';
-    const updatedAccounts = AccountController.updateAccount(
-      accountId,
-      field,
-      value,
-      portfolio.accounts
-    );
+    const updatedAccounts = isProjectionField
+      ? portfolio.accounts
+      : AccountController.updateAccount(
+          accountId,
+          field,
+          value,
+          portfolio.accounts
+        );
     let updatedProjections = portfolio.projections;
     if (isProjectionField && targetProjectionId) {
       updatedProjections = portfolio.projections.map(proj => {
@@ -507,7 +509,12 @@ function PortfolioManager({ auth }) {
     const templateJson = template.toJSON();
     // ensure transferRules are plain objects to avoid shared references
     const clonedRules = (templateJson.transferRules || []).map(rule => ({ ...rule }));
-    const clonedOverrides = { ...(templateJson.accountOverrides || {}) };
+    const clonedOverrides = Object.fromEntries(
+      Object.entries(templateJson.accountOverrides || {}).map(([accId, override]) => [
+        accId,
+        { ...override }
+      ])
+    );
     const tempId = Math.floor(Date.now() % 2147480000); // safe int32 range for client selection
     const newProjection = new Projection({
       ...templateJson,
