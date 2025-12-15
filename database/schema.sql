@@ -50,8 +50,7 @@ CREATE TABLE accounts (
   type VARCHAR(50) NOT NULL, -- 'investment' or 'cash'
   balance DECIMAL(15,2) NOT NULL,
   currency VARCHAR(3) DEFAULT 'USD',
-  yield_rate DECIMAL(5,2),
-  interest_rate DECIMAL(5,2),
+  return_rate DECIMAL(5,2),
   taxable BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -61,8 +60,7 @@ CREATE TABLE projection_accounts (
   id SERIAL PRIMARY KEY,
   projection_id INTEGER NOT NULL REFERENCES projections(id) ON DELETE CASCADE,
   account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  yield_rate DECIMAL(5,2),
-  interest_rate DECIMAL(5,2),
+  return_rate DECIMAL(5,2),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(projection_id, account_id)
 );

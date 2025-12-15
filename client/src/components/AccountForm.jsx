@@ -7,9 +7,8 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
     type: 'investment',
     balance: '',
     currency: baseCurrency,
-    interestRate: 0,
-    taxable: false,
-    yield: 7
+    returnRate: '',
+    taxable: false
   });
 
   const [errors, setErrors] = useState([]);
@@ -59,8 +58,7 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
       onSubmit({
         ...account,
         balance: parseCurrencyInput(account.balance),
-        interestRate: parseFloat(account.interestRate) || 0,
-        yield: parseFloat(account.yield) || 0
+        returnRate: parseFloat(account.returnRate) || 0
       });
     }
   };
@@ -116,17 +114,17 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
             type="number"
             step="0.1"
             placeholder="Interest Rate (%)"
-            value={account.interestRate || ''}
-            onChange={(e) => handleChange('interestRate', e.target.value)}
+            value={account.returnRate || ''}
+            onChange={(e) => handleChange('returnRate', e.target.value)}
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-purple-400"
           />
         ) : (
           <input
             type="number"
             step="0.1"
-            placeholder="Expected Yield (%)"
-            value={account.yield || ''}
-            onChange={(e) => handleChange('yield', e.target.value)}
+            placeholder="Expected Annual Return (%)"
+            value={account.returnRate || ''}
+            onChange={(e) => handleChange('returnRate', e.target.value)}
             className="px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-purple-400"
           />
         )}

@@ -287,8 +287,7 @@ const normalizeAccount = (row) => ({
   type: row.type,
   balance: Number(row.balance),
   currency: row.currency,
-  yield: Number(row.yield_rate || 0),
-  interestRate: Number(row.interest_rate || 0),
+  returnRate: Number(row.return_rate || 0),
   taxable: row.taxable,
 });
 
@@ -587,9 +586,9 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       if (!overridesByProjection[row.projection_id]) {
         overridesByProjection[row.projection_id] = {};
       }
+      const rate = Number(row.return_rate || 0);
       overridesByProjection[row.projection_id][row.account_id] = {
-        yield: Number(row.yield_rate || 0),
-        interestRate: Number(row.interest_rate || 0)
+        returnRate: rate
       };
     });
 
@@ -696,14 +695,14 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       // Insert accounts and get their new IDs
       const accountIdMap = new Map();
       for (const account of accounts) {
+        const accountRate = account.returnRate ?? 0;
         const accountRes = await client.query(
-          `INSERT INTO accounts (portfolio_id, name, type, balance, currency, yield_rate, interest_rate, taxable)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO accounts (portfolio_id, name, type, balance, currency, return_rate, taxable)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id`,
           [
             portfolioId, account.name, account.type, account.balance,
-            account.currency, account.yield ?? account.yieldRate ?? 0,
-            account.interestRate ?? 0, account.taxable
+            account.currency, accountRate, account.taxable
           ]
         );
         // Map old temporary ID to new database ID
@@ -765,17 +764,13 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           if (!dbAccountId) {
             throw new Error(`Unknown account id ${accountId} for projection overrides`);
           }
+          const overrideRate = override.returnRate ?? 0;
           await client.query(
-            `INSERT INTO projection_accounts (projection_id, account_id, yield_rate, interest_rate)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO projection_accounts (projection_id, account_id, return_rate)
+             VALUES ($1, $2, $3)
              ON CONFLICT (projection_id, account_id)
-             DO UPDATE SET yield_rate = EXCLUDED.yield_rate, interest_rate = EXCLUDED.interest_rate`,
-            [
-              dbProjId,
-              dbAccountId,
-              override.yield ?? override.yieldRate ?? 0,
-              override.interestRate ?? 0
-            ]
+             DO UPDATE SET return_rate = EXCLUDED.return_rate`,
+            [dbProjId, dbAccountId, overrideRate]
           );
         }
 
@@ -883,8 +878,8 @@ app.get('/api/seed', async (req, res) => {
     if (!portfolioId) {
       console.log(`No portfolio for user ${userId}, creating one.`);
       const portfolioRes = await client.query(
-        'INSERT INTO portfolios (user_id, base_currency, default_investment_yield, tax_rate, projection_years) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-        [userId, 'USD', 7, 15, 10]
+        'INSERT INTO portfolios (user_id, base_currency, tax_rate, projection_years) VALUES ($1, $2, $3, $4) RETURNING id',
+        [userId, 'USD', 15, 10]
       );
       portfolioId = portfolioRes.rows[0].id;
     }
@@ -892,8 +887,8 @@ app.get('/api/seed', async (req, res) => {
     const projectionCheck = await client.query('SELECT id FROM projections WHERE portfolio_id = $1', [portfolioId]);
     if (projectionCheck.rows.length === 0) {
       await client.query(
-        'INSERT INTO projections (portfolio_id, name, default_investment_yield, tax_rate, projection_years) VALUES ($1, $2, $3, $4, $5)',
-        [portfolioId, 'Projection 1', 7, 15, 10]
+        'INSERT INTO projections (portfolio_id, name, tax_rate, projection_years) VALUES ($1, $2, $3, $4)',
+        [portfolioId, 'Projection 1', 15, 10]
       );
     }
 

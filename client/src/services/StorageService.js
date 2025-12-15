@@ -67,8 +67,7 @@ class StorageService {
         accounts: (portfolioData.accounts || []).map(acc => ({
           ...acc,
           balance: Number(acc.balance),
-          interestRate: acc.interestRate != null ? Number(acc.interestRate) : acc.interestRate,
-          yield: acc.yield != null ? Number(acc.yield) : acc.yield
+          returnRate: acc.returnRate != null ? Number(acc.returnRate) : 0
         })),
         projections: (portfolioData.projections || []).map(proj => {
           const INT_MAX = 2147483647;

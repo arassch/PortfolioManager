@@ -8,8 +8,7 @@ export class Account {
     this.type = data.type || 'investment'; // 'investment' or 'cash'
     this.balance = parseFloat(data.balance) || 0;
     this.currency = data.currency || 'USD';
-    this.interestRate = parseFloat(data.interestRate) || 0; // for cash accounts
-    this.yield = parseFloat(data.yield) || 0; // for investment accounts
+    this.returnRate = parseFloat(data.returnRate ?? 0) || 0;
     this.taxable = data.taxable || false;
     // Tax treatment/basis for after-tax views
     this.taxTreatment = data.taxTreatment || (this.taxable ? 'taxable' : 'deferred'); // 'taxable' | 'deferred' | 'roth'
@@ -20,8 +19,8 @@ export class Account {
     return this.name && this.balance >= 0 && this.currency;
   }
 
-  getYieldRate() {
-    return this.type === 'cash' ? this.interestRate : this.yield;
+  getReturnRate() {
+    return this.returnRate;
   }
 
   toJSON() {
@@ -31,8 +30,7 @@ export class Account {
       type: this.type,
       balance: this.balance,
       currency: this.currency,
-      interestRate: this.interestRate,
-      yield: this.yield,
+      returnRate: this.returnRate,
       taxable: this.taxable,
       taxTreatment: this.taxTreatment,
       costBasis: this.costBasis

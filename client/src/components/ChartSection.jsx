@@ -46,9 +46,8 @@ export function ChartSection({
       .filter((acc) => selectedAccounts[acc.id])
       .map((acc) => {
         const rate =
-          (typeof acc.getYieldRate === 'function' ? acc.getYieldRate() : null) ??
-          acc.interestRate ??
-          acc.yield ??
+          (typeof acc.getReturnRate === 'function' ? acc.getReturnRate() : null) ??
+          acc.returnRate ??
           0;
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
@@ -134,7 +133,7 @@ export function ChartSection({
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
-          <div>Earnings: {formatCurrency(current.totalYield || 0)}</div>
+          <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
           {prev && (
             <div className="text-xs text-purple-200">
               From {formatCurrency(prevProjected)} → {formatCurrency(currProjected)} | Δ {formatCurrency(delta)} ({pct})
@@ -265,9 +264,9 @@ export function ChartSection({
             Growth Projection
           </button>
           <button
-            onClick={() => onTabChange('yields')}
+            onClick={() => onTabChange('returns')}
             className={`px-4 py-2 rounded-lg transition-all ${
-              activeTab === 'yields'
+              activeTab === 'returns'
                 ? 'bg-purple-600 text-white'
                 : 'bg-white/5 text-purple-200 hover:bg-white/10'
             }`}
@@ -392,7 +391,7 @@ export function ChartSection({
                     .map((account, idx) => (
                       <Bar
                         key={account.id}
-                        dataKey={`account_${account.id}_yield`}
+                        dataKey={`account_${account.id}_return`}
                         name={account.name}
                         fill={getColorForIndex(idx, accounts.length)}
                         animationDuration={1500}
@@ -400,7 +399,7 @@ export function ChartSection({
                     ))
                 ) : (
                   <Bar
-                    dataKey="totalYield"
+                    dataKey="totalReturn"
                     name="Total Earnings"
                     fill="#a78bfa"
                     animationDuration={1500}

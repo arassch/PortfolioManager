@@ -9,7 +9,13 @@ export class Projection {
     this.name = data.name || 'Projection';
     this.createdAt = data.createdAt || new Date().toISOString();
     this.transferRules = (data.transferRules || []).map(rule => new TransferRule(rule));
-    this.accountOverrides = data.accountOverrides || {};
+    const overrides = data.accountOverrides || {};
+    this.accountOverrides = Object.fromEntries(
+      Object.entries(overrides).map(([accId, override]) => {
+        const rate = override.returnRate ?? 0;
+        return [accId, { returnRate: rate }];
+      })
+    );
   }
 
   toJSON() {

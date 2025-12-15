@@ -16,7 +16,7 @@ export function AccountItem({
   showActualValueInput,
   onToggleActualValueInput,
   enableProjectionFields = true,
-  showYield = true
+  showReturnRate = true
 }) {
   const [year, setYear] = useState('');
   const [value, setValue] = useState('');
@@ -40,10 +40,10 @@ export function AccountItem({
     })
     .sort((a, b) => a.year - b.year);
 
-  const yieldRate = account.type === 'cash' ? account.interestRate : account.yield;
-  const yieldLabel = account.type === 'cash' ? 'Interest' : 'Yield';
+  const returnRate = account.returnRate;
+  const rateLabel = account.type === 'cash' ? 'Interest' : 'Return Rate';
   const saveProjection = onSaveProjectionValue || onSaveEdit;
-  const canEditYield = isEditing && enableProjectionFields;
+  const canEditRate = isEditing && enableProjectionFields;
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
@@ -74,7 +74,7 @@ export function AccountItem({
               </span>
             )}
           </div>
-          <div className={`grid gap-4 text-sm ${showYield ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+          <div className={`grid gap-4 text-sm ${showReturnRate ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>
               <span className="text-purple-200">Balance: </span>
               {isEditing ? (
@@ -90,24 +90,24 @@ export function AccountItem({
                 </span>
               )}
             </div>
-            {showYield && (
+            {showReturnRate && (
               <div>
-                <span className="text-purple-200">{yieldLabel}: </span>
-                {canEditYield ? (
+                <span className="text-purple-200">{rateLabel}: </span>
+                {canEditRate ? (
                   <input
                     type="number"
                     step="0.1"
-                    value={yieldRate}
+                    value={returnRate}
                     onChange={(e) => saveProjection(
                       account.id,
-                      account.type === 'cash' ? 'interestRate' : 'yield',
+                      'returnRate',
                       parseFloat(e.target.value) || 0
                     )}
                     className="w-16 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
                   />
                 ) : (
                   <span className="text-white font-semibold">
-                    {yieldRate}%
+                    {returnRate}%
                     {isEditing && !enableProjectionFields && (
                       <span className="text-purple-300 text-xs ml-2">(edit in projection tabs)</span>
                     )}

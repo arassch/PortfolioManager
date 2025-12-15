@@ -283,7 +283,7 @@ function PortfolioManager({ auth }) {
     setSelectedAccounts(selected);
     const drafts = {};
     portfolio.accounts.forEach(acc => {
-      drafts[acc.id] = acc.type === 'cash' ? acc.interestRate : acc.yield;
+      drafts[acc.id] = acc.returnRate;
     });
     setProjectionRateDrafts(drafts);
   }, [portfolio.accounts]);
@@ -302,7 +302,7 @@ function PortfolioManager({ auth }) {
   useEffect(() => {
     const drafts = {};
     projectionView.accounts.forEach(acc => {
-      drafts[acc.id] = acc.type === 'cash' ? acc.interestRate : acc.yield;
+      drafts[acc.id] = acc.returnRate;
     });
     setProjectionRateDrafts(drafts);
   }, [projectionView.accounts]);
@@ -395,8 +395,7 @@ function PortfolioManager({ auth }) {
       const updatedProjections = (portfolio.projections || []).map(proj => {
         const overrides = { ...(proj.accountOverrides || {}) };
         overrides[newAccount.id] = {
-          yield: newAccount.yield,
-          interestRate: newAccount.interestRate
+          returnRate: newAccount.returnRate
         };
         return new Projection({ ...proj.toJSON(), accountOverrides: overrides });
       });
@@ -415,7 +414,7 @@ function PortfolioManager({ auth }) {
   };
 
   const handleSaveAccountEdit = async (accountId, field, value) => {
-    const isProjectionField = field === 'yield' || field === 'interestRate';
+    const isProjectionField = field === 'returnRate';
     const updatedAccounts = isProjectionField
       ? portfolio.accounts
       : AccountController.updateAccount(
@@ -430,7 +429,7 @@ function PortfolioManager({ auth }) {
         if (String(proj.id) !== String(targetProjectionId)) return proj;
         const overrides = { ...(proj.accountOverrides || {}) };
         const current = overrides[accountId] || {};
-        overrides[accountId] = { ...current, [field]: value };
+        overrides[accountId] = { ...current, returnRate: value };
         return new Projection({ ...proj.toJSON(), accountOverrides: overrides });
       });
     }
@@ -505,7 +504,7 @@ function PortfolioManager({ auth }) {
       transferRules: [],
       accountOverrides: {}
     });
-    // Duplicate the active projection (yields/overrides + transfer rules)
+    // Duplicate the active projection (overrides + transfer rules)
     const templateJson = template.toJSON();
     // ensure transferRules are plain objects to avoid shared references
     const clonedRules = (templateJson.transferRules || []).map(rule => ({ ...rule }));
@@ -744,7 +743,7 @@ function PortfolioManager({ auth }) {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <h4 className="text-lg font-semibold text-white">Projection Scenarios</h4>
-                  <p className="text-purple-200 text-sm">Select a projection to edit settings, yields, and rules.</p>
+                  <p className="text-purple-200 text-sm">Select a projection to edit settings, expected returns, and rules.</p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -861,7 +860,7 @@ function PortfolioManager({ auth }) {
                 <div>
               <h3 className="text-xl font-bold text-white">Accounts & Actual Data</h3>
                   <p className="text-purple-200 text-sm">
-                    These accounts and data points are shared across every projection. Edit yields/interest inside each projection tab.
+                    These accounts and data points are shared across every projection. Edit return rates inside each projection tab.
                   </p>
                 </div>
                 <button
@@ -900,7 +899,7 @@ function PortfolioManager({ auth }) {
                     showActualValueInput={showActualInput === account.id}
                     onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
                       enableProjectionFields={!isPortfolioSection}
-                      showYield={!isPortfolioSection}
+                      showReturnRate={!isPortfolioSection}
                     />
                   </div>
                 ))}
@@ -944,15 +943,15 @@ function PortfolioManager({ auth }) {
 
             {activeProjection && (
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
-                <h3 className="text-xl font-bold text-white mb-2">Projection Yields & Interest</h3>
+                <h3 className="text-xl font-bold text-white mb-2">Return Rates</h3>
                 <p className="text-purple-200 text-sm mb-4">
-                  Adjust account yields/interest for this projection only.
+                  Adjust account return rates for this projection only.
                 </p>
                 <div className="grid md:grid-cols-2 gap-3">
                   {projectionView.accounts.map((account) => {
                     const rate = projectionRateDrafts[account.id] ?? '';
-                    const label = account.type === 'cash' ? 'Interest %' : 'Yield %';
-                    const field = account.type === 'cash' ? 'interestRate' : 'yield';
+                    const label = account.type === 'cash' ? 'Interest %' : 'Return Rate %';
+                    const field = 'returnRate';
                     const persistRate = () => {
                       const num = parseFloat(rate);
                       const finalVal = Number.isFinite(num) ? num : 0;

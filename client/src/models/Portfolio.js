@@ -21,8 +21,7 @@ export class Portfolio {
       const legacyOverrides = {};
       this.accounts.forEach(acc => {
         legacyOverrides[acc.id] = {
-          yield: acc.yield,
-          interestRate: acc.interestRate
+          returnRate: acc.returnRate
         };
       });
       this.projections = [
@@ -64,10 +63,10 @@ export class Portfolio {
 
     const accounts = this.accounts.map(acc => {
       const overrides = projection.accountOverrides?.[acc.id] || projection.accountOverrides?.[String(acc.id)] || {};
+      const overrideRate = overrides.returnRate;
       return new Account({
         ...acc,
-        yield: overrides.yield ?? acc.yield,
-        interestRate: overrides.interestRate ?? acc.interestRate
+        returnRate: overrideRate ?? acc.returnRate
       });
     });
 

@@ -44,7 +44,7 @@ class ProjectionController {
           year: y,
           label: y.toString(),
           projected: null,
-          totalYield: 0,
+        totalReturn: 0,
           actual: actualTotalsByYear[y] ? Math.round(actualTotalsByYear[y]) : null
         };
         if (showIndividualAccounts && actualByAccountYear[y]) {
@@ -79,12 +79,12 @@ class ProjectionController {
         year,
         label: year.toString(),
         projected: 0,
-        totalYield: 0,
+        totalReturn: 0,
         actual: null
       };
 
       let totalProjected = 0;
-      let totalYieldForYear = 0;
+      let totalReturnForYear = 0;
       let totalActual = 0;
 
       // Store start of year balances
@@ -112,8 +112,8 @@ class ProjectionController {
         for (let month = 1; month <= 12; month++) {
           const monthNetGain = {};
           portfolio.accounts.forEach(account => {
-            const yieldRate = account.getYieldRate();
-            const rate = yieldRate != null ? yieldRate : 0;
+            const returnRate = account.getReturnRate();
+            const rate = returnRate != null ? returnRate : 0;
             const monthlyRate = rate / 100 / 12;
             // If this account sends earnings away, base gains on start-of-year balance (no compounding)
             const gainBase = earningsTransferAccounts.has(account.id)
@@ -185,14 +185,14 @@ class ProjectionController {
         totalProjected += value;
 
         if (yearIndex > 0) {
-          const annualYield = value - yearStartBalances[account.id];
-          totalYieldForYear += annualYield;
+          const annualReturn = value - yearStartBalances[account.id];
+          totalReturnForYear += annualReturn;
 
           if (showIndividualAccounts) {
-            yearData[`account_${account.id}_yield`] = Math.round(annualYield);
+            yearData[`account_${account.id}_return`] = Math.round(annualReturn);
           }
         } else if (showIndividualAccounts) {
-          yearData[`account_${account.id}_yield`] = 0;
+          yearData[`account_${account.id}_return`] = 0;
         }
 
         if (showIndividualAccounts) {
@@ -214,7 +214,7 @@ class ProjectionController {
       });
 
       yearData.projected = Math.round(totalProjected);
-      yearData.totalYield = Math.round(totalYieldForYear);
+      yearData.totalReturn = Math.round(totalReturnForYear);
       yearData.actual = totalActual > 0 ? Math.round(totalActual) : null;
 
       data.push(yearData);
