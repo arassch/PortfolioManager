@@ -261,7 +261,7 @@ function PortfolioManager({ auth }) {
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [showAddRule, setShowAddRule] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState(null);
-  const [primaryTab, setPrimaryTab] = useState('portfolio'); // 'portfolio' | 'projections'
+  const [primaryTab, setPrimaryTab] = useState('portfolio'); // 'portfolio' | 'projections' | 'analysis'
   const [activeTab, setActiveTab] = useState('growth');
   const [projectionRateDrafts, setProjectionRateDrafts] = useState({});
   const [selectedAccounts, setSelectedAccounts] = useState({});
@@ -386,6 +386,9 @@ function PortfolioManager({ auth }) {
   };
   const targetProjectionId = activeProjectionId || portfolio.projections[0]?.id;
   const isPortfolioSection = primaryTab === 'portfolio';
+  const isAnalysisSection = primaryTab === 'analysis';
+  const isProjectionSection = primaryTab === 'projections';
+  const allowProjectionEditing = isProjectionSection;
 
   // Account handlers
   const handleAddAccount = async (accountData) => {
@@ -745,17 +748,27 @@ function PortfolioManager({ auth }) {
                 <button
                   onClick={() => setPrimaryTab('projections')}
                   className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                    !isPortfolioSection
+                    primaryTab === 'projections'
                       ? 'bg-purple-600 text-white border-purple-400'
                       : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
                   }`}
                 >
                   Projections
                 </button>
+                <button
+                  onClick={() => setPrimaryTab('analysis')}
+                  className={`px-4 py-2 rounded-lg text-sm border transition-all ${
+                    primaryTab === 'analysis'
+                      ? 'bg-purple-600 text-white border-purple-400'
+                      : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  Analysis
+                </button>
               </div>
             </div>
 
-            {!isPortfolioSection && (
+            {isProjectionSection && (
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <h4 className="text-lg font-semibold text-white">Projection Scenarios</h4>
@@ -789,7 +802,7 @@ function PortfolioManager({ auth }) {
               </div>
             )}
 
-            {!isPortfolioSection && (
+            {isProjectionSection && (
               <div className="flex flex-wrap gap-2">
                 {(portfolio.projections || []).map((proj) => {
                   const isActive = String(proj.id) === String(activeProjectionId);
@@ -810,7 +823,7 @@ function PortfolioManager({ auth }) {
               </div>
             )}
 
-            {!isPortfolioSection && (
+            {isProjectionSection && (
               <div className="flex flex-wrap gap-3">
                 {projectionCards.map((proj) => {
                   const isActive = String(proj.id) === String(activeProjectionId);
@@ -848,33 +861,33 @@ function PortfolioManager({ auth }) {
           </div>
         </div>
 
-        {isPortfolioSection ? (
+        {isPortfolioSection && (
           <>
-        {/* Top strip: total balance + portfolio settings */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 md:p-6 mb-8 border border-white/20 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <SummaryCard
-            title="Total Balance"
-            value={portfolio.accounts.reduce((sum, acc) => 
-              sum + CurrencyService.convertToBase(acc.balance, acc.currency, portfolio.baseCurrency), 0
-            )}
-            currency={portfolio.baseCurrency}
-            icon={DollarSign}
-          />
-          <div className="flex-1">
-            <PortfolioSettings
-              projectionYears={portfolio.projectionYears}
-              taxRate={portfolio.taxRate}
-              baseCurrency={portfolio.baseCurrency}
-              onUpdate={handleUpdatePortfolioSettings}
-            />
-          </div>
-        </div>
+            {/* Top strip: total balance + portfolio settings */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 md:p-6 mb-8 border border-white/20 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <SummaryCard
+                title="Total Balance"
+                value={portfolio.accounts.reduce((sum, acc) => 
+                  sum + CurrencyService.convertToBase(acc.balance, acc.currency, portfolio.baseCurrency), 0
+                )}
+                currency={portfolio.baseCurrency}
+                icon={DollarSign}
+              />
+              <div className="flex-1">
+                <PortfolioSettings
+                  projectionYears={portfolio.projectionYears}
+                  taxRate={portfolio.taxRate}
+                  baseCurrency={portfolio.baseCurrency}
+                  onUpdate={handleUpdatePortfolioSettings}
+                />
+              </div>
+            </div>
 
             {/* Accounts List */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
               <div className="flex justify-between items-center mb-4">
                 <div>
-              <h3 className="text-xl font-bold text-white">Accounts & Actual Data</h3>
+                  <h3 className="text-xl font-bold text-white">Accounts & Actual Data</h3>
                   <p className="text-purple-200 text-sm">
                     These accounts and data points are shared across every projection. Edit return rates inside each projection tab.
                   </p>
@@ -899,47 +912,51 @@ function PortfolioManager({ auth }) {
               )}
 
               <div className="space-y-3">
-              {portfolio.accounts.map(account => (
-                <div key={account.id} className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
-                  <AccountItem
-                    account={account}
-                    isEditing={editingAccountId === account.id}
+                {portfolio.accounts.map(account => (
+                  <div key={account.id} className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
+                    <AccountItem
+                      account={account}
+                      isEditing={editingAccountId === account.id}
                       onStartEdit={() => setEditingAccountId(account.id)}
-                    onDelete={() => handleDeleteAccount(account.id)}
-                    onFinishEdit={() => setEditingAccountId(null)}
-                    onSaveEdit={handleSaveAccountEdit}
-                    onSaveProjectionValue={handleSaveAccountEdit}
-                    onAddActualValue={handleAddActualValue}
-                    onDeleteActualValue={handleDeleteActualValue}
-                    actualValues={portfolio.actualValues[account.id] || {}}
-                    showActualValueInput={showActualInput === account.id}
-                    onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
-                      enableProjectionFields={!isPortfolioSection}
-                      showReturnRate={!isPortfolioSection}
+                      onDelete={() => handleDeleteAccount(account.id)}
+                      onFinishEdit={() => setEditingAccountId(null)}
+                      onSaveEdit={handleSaveAccountEdit}
+                      onSaveProjectionValue={handleSaveAccountEdit}
+                      onAddActualValue={handleAddActualValue}
+                      onDeleteActualValue={handleDeleteActualValue}
+                      actualValues={portfolio.actualValues[account.id] || {}}
+                      showActualValueInput={showActualInput === account.id}
+                      onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
+                      enableProjectionFields={allowProjectionEditing}
+                      showReturnRate={allowProjectionEditing}
                     />
                   </div>
                 ))}
               </div>
 
-          {portfolio.accounts.length === 0 && (
-            <div className="text-center py-12 text-purple-200">
-              <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>No accounts yet. Add your first account to get started!</p>
-            </div>
+              {portfolio.accounts.length === 0 && (
+                <div className="text-center py-12 text-purple-200">
+                  <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>No accounts yet. Add your first account to get started!</p>
+                </div>
               )}
             </div>
-
-            <ProjectionComparisonSection
-              data={projectionComparisonData}
-              projections={projectionSeries.map(({ id, name }) => ({ id, name }))}
-              accounts={portfolio.accounts}
-              baseCurrency={portfolio.baseCurrency}
-              selectedAccounts={selectedAccounts}
-              onToggleAccount={toggleAccountSelection}
-            />
           </>
-    ) : (
-      <>
+        )}
+
+        {isAnalysisSection && (
+          <ProjectionComparisonSection
+            data={projectionComparisonData}
+            projections={projectionSeries.map(({ id, name }) => ({ id, name }))}
+            accounts={portfolio.accounts}
+            baseCurrency={portfolio.baseCurrency}
+            selectedAccounts={selectedAccounts}
+            onToggleAccount={toggleAccountSelection}
+          />
+        )}
+
+        {isProjectionSection && (
+          <>
             {activeProjection && (
               <ChartSection
                 projectionName={activeProjection?.name}
