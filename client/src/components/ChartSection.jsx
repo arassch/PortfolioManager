@@ -31,6 +31,7 @@ export function ChartSection({
     const current = projectionData.find(p => p.year === currentYear);
     return current || projectionData[0];
   };
+  const hasActualData = projectionData.some(p => p.actual != null);
 
   const [hoverData, setHoverData] = useState(getDefaultHover());
 
@@ -100,7 +101,7 @@ export function ChartSection({
               Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
             </div>
           )}
-          {current.actual ? (
+          {current.actual != null ? (
             <div className="text-green-300">Actual: {formatCurrency(current.actual)}</div>
           ) : null}
           {showIndividualAccounts && (
@@ -324,25 +325,26 @@ export function ChartSection({
               }
             }}
             onMouseLeave={() => setHoverData(getDefaultHover())}
-          >
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                <XAxis dataKey="label" stroke="#ffffff80" />
-                <YAxis
-                  stroke="#ffffff80"
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
+              <XAxis dataKey="label" stroke="#ffffff80" />
+              <YAxis
+                stroke="#ffffff80"
                   tickFormatter={(val) =>
                     `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
                   }
                 />
-                <Tooltip content={renderGrowthTooltip} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="projected"
-                  stroke="#a78bfa"
-                  strokeWidth={3}
-                  dot={false}
-                  animationDuration={1500}
-                />
+              <Tooltip content={renderGrowthTooltip} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="projected"
+                stroke="#a78bfa"
+                strokeWidth={3}
+                dot={false}
+                animationDuration={1500}
+              />
+              {hasActualData && (
                 <Line
                   type="monotone"
                   dataKey="actual"
@@ -352,6 +354,7 @@ export function ChartSection({
                   animationDuration={1500}
                   connectNulls
                 />
+              )}
                 {showIndividualAccounts &&
                   accounts
                     .filter((acc) => selectedAccounts[acc.id])

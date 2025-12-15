@@ -26,6 +26,7 @@ export function ProjectionComparisonSection({
 }) {
   const [hoverRow, setHoverRow] = useState(data[data.length - 1] || null);
   const formatCurrency = (value) => CurrencyService.formatCurrency(value || 0, baseCurrency);
+  const hasActualData = data.some(row => row.actual != null);
 
   useEffect(() => {
     setHoverRow(data[data.length - 1] || null);
@@ -67,11 +68,12 @@ export function ProjectionComparisonSection({
   const renderTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     const point = payload[0].payload;
+    const hasActual = point.actual != null;
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">Year {label}</div>
         <div className="space-y-1 mt-1">
-          {point.actual != null && (
+          {hasActual && (
             <div className="text-green-200">Actual data: {formatCurrency(point.actual)}</div>
           )}
           {projections.map((proj, idx) => {
@@ -186,15 +188,17 @@ export function ProjectionComparisonSection({
               />
               <Tooltip content={renderTooltip} />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="actual"
-                name="Actual data"
-                stroke="#34d399"
-                strokeWidth={3}
-                dot={{ fill: '#34d399', r: 4 }}
-                connectNulls
-              />
+              {hasActualData && (
+                <Line
+                  type="monotone"
+                  dataKey="actual"
+                  name="Actual data"
+                  stroke="#34d399"
+                  strokeWidth={3}
+                  dot={{ fill: '#34d399', r: 4 }}
+                  connectNulls
+                />
+              )}
               {projections.map((proj, idx) => (
                 <Line
                   key={proj.id}
