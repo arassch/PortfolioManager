@@ -20,7 +20,8 @@ export function ChartSection({
   accountFilterHint,
   onTabChange,
   onToggleAccount,
-  onToggleIndividualAccounts
+  onToggleIndividualAccounts,
+  inflationRate = 0
 }) {
   const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
   const currentYear = new Date().getFullYear();
@@ -49,6 +50,7 @@ export function ChartSection({
           (typeof acc.getReturnRate === 'function' ? acc.getReturnRate() : null) ??
           acc.returnRate ??
           0;
+        const realRate = rate - inflationRate;
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
@@ -56,11 +58,11 @@ export function ChartSection({
         const currNet = isTaxable && current ? current[`account_${acc.id}_net`] : null;
         if (prevVal == null || currVal == null) return null;
 
-        const gross = prevVal * (1 + rate / 100);
+        const gross = prevVal * (1 + realRate / 100);
         const transferNet = current[`account_${acc.id}_transfers`] || 0;
         const calcParts = [
           `prev ${formatCurrency(prevVal)}`,
-          `x ${rate}%`,
+          `x ${realRate.toFixed(2)}%`,
           transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
           `= ${formatCurrency(currVal)}`
         ].filter(Boolean);
@@ -92,6 +94,7 @@ export function ChartSection({
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Projected: {formatCurrency(current.projected)}</div>
+          <div className="text-xs text-purple-200">Inflation applied: {inflationRate}% subtracted from return rates.</div>
           {prev && (
             <div className="text-xs text-purple-200">
               Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
@@ -134,6 +137,7 @@ export function ChartSection({
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
+          <div className="text-xs text-purple-200">Inflation applied: {inflationRate}% subtracted from return rates.</div>
           {prev && (
             <div className="text-xs text-purple-200">
               From {formatCurrency(prevProjected)} → {formatCurrency(currProjected)} | Δ {formatCurrency(delta)} ({pct})

@@ -75,6 +75,7 @@ class StorageService {
           return {
             ...proj,
             id: safeId,
+            inflationRate: proj.inflationRate != null ? Number(proj.inflationRate) : 0,
             taxRate: proj.taxRate != null ? Number(proj.taxRate) : proj.taxRate,
             projectionYears: proj.projectionYears != null ? Number(proj.projectionYears) : proj.projectionYears,
             transferRules: (proj.transferRules || []).map(sanitizeRule)

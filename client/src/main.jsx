@@ -590,6 +590,22 @@ function PortfolioManager({ auth }) {
   };
 
   // Transfer rule handlers
+  const handleSaveInflationRate = async (value) => {
+    const rateNum = Number.isFinite(value) ? value : parseFloat(value) || 0;
+    const updatedProjections = portfolio.projections.map(proj =>
+      String(proj.id) === String(targetProjectionId)
+        ? new Projection({ ...proj.toJSON(), inflationRate: rateNum })
+        : proj
+    );
+    const updatedPortfolio = new Portfolio({
+      ...portfolio.toJSON(),
+      projections: updatedProjections.map(p => p.toJSON()),
+      activeProjectionId
+    });
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
+  };
+
   const handleAddRule = async (ruleData) => {
     try {
       const newRules = RuleController.createRule(ruleData, activeProjection?.transferRules || []);
@@ -934,6 +950,7 @@ function PortfolioManager({ auth }) {
                 showIndividualAccounts={showIndividualAccounts}
                 activeTab={activeTab}
                 baseCurrency={portfolio.baseCurrency}
+                inflationRate={projectionView.inflationRate}
                 onTabChange={setActiveTab}
                 onToggleAccount={toggleAccountSelection}
                 onToggleIndividualAccounts={setShowIndividualAccounts}
@@ -943,10 +960,24 @@ function PortfolioManager({ auth }) {
 
             {activeProjection && (
               <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
-                <h3 className="text-xl font-bold text-white mb-2">Return Rates</h3>
-                <p className="text-purple-200 text-sm mb-4">
-                  Adjust account return rates for this projection only.
-                </p>
+                <div className="flex flex-col gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-purple-100">Inflation %</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={activeProjection?.inflationRate ?? 0}
+                      onChange={(e) => handleSaveInflationRate(parseFloat(e.target.value) || 0)}
+                      className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Return Rates</h3>
+                    <p className="text-purple-200 text-sm">
+                      Adjust account return rates for this projection only. Inflation is subtracted from these rates.
+                    </p>
+                  </div>
+                </div>
                 <div className="grid md:grid-cols-2 gap-3">
                   {projectionView.accounts.map((account) => {
                     const rate = projectionRateDrafts[account.id] ?? '';

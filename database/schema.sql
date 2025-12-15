@@ -40,6 +40,7 @@ CREATE TABLE projections (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL DEFAULT 'Projection',
+  inflation_rate DECIMAL(5,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

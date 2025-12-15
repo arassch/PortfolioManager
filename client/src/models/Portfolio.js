@@ -73,6 +73,7 @@ export class Portfolio {
     return {
       accounts,
       transferRules: projection.transferRules,
+      inflationRate: projection.inflationRate ?? 0,
       actualValues: this.actualValues,
       projectionYears: this.projectionYears,
       taxRate: this.taxRate,

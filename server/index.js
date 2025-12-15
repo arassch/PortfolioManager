@@ -619,6 +619,7 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
         id: p.id,
         portfolioId: p.portfolio_id,
         name: p.name,
+        inflationRate: p.inflation_rate ?? 0,
         projectionYears: portfolio.projection_years,
         taxRate: portfolio.tax_rate,
         createdAt: p.created_at,
@@ -683,6 +684,7 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         name: 'Projection 1',
         transferRules: [],
         accountOverrides: {},
+        inflationRate: 0,
         createdAt: new Date().toISOString()
       }];
 
@@ -716,13 +718,14 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         if (proj.id) {
           const updated = await client.query(
             `UPDATE projections
-             SET name = $1
+             SET name = $1, inflation_rate = $4
              WHERE id = $2 AND portfolio_id = $3
              RETURNING id`,
             [
               proj.name || 'Projection',
               proj.id,
-              portfolioId
+              portfolioId,
+              proj.inflationRate ?? 0
             ]
           );
           if (updated.rowCount > 0) {
@@ -731,12 +734,13 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           }
         }
         const inserted = await client.query(
-          `INSERT INTO projections (portfolio_id, name, created_at)
-           VALUES ($1, $2, $3)
+          `INSERT INTO projections (portfolio_id, name, inflation_rate, created_at)
+           VALUES ($1, $2, $3, $4)
            RETURNING id`,
           [
             portfolioId,
             proj.name || 'Projection',
+            proj.inflationRate ?? 0,
             createdAt
           ]
         );

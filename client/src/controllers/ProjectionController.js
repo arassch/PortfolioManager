@@ -14,6 +14,7 @@ class ProjectionController {
     const currentYear = new Date().getFullYear();
     const taxRate = portfolio.taxRate || 0;
     const transferRules = portfolio.transferRules || [];
+    const inflation = portfolio.inflationRate ?? 0;
 
     // Build actuals by absolute year (with legacy offset support)
     const actualTotalsByYear = {};
@@ -113,9 +114,10 @@ class ProjectionController {
           const monthNetGain = {};
           portfolio.accounts.forEach(account => {
             const returnRate = account.getReturnRate();
-            const rate = returnRate != null ? returnRate : 0;
+            const inflation = portfolio.inflationRate ?? 0;
+            const realRate = (returnRate != null ? returnRate : 0) - inflation;
             // Convert user-entered annual rate to an equivalent monthly rate so the annualized return matches
-            const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1;
+            const monthlyRate = Math.pow(1 + realRate / 100, 1 / 12) - 1;
             // If this account sends earnings away, base gains on start-of-year balance (no compounding)
             const gainBase = earningsTransferAccounts.has(account.id)
               ? yearStartBalances[account.id]
