@@ -8,12 +8,18 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   const isExternalOutcome = (rule.toExternal === true || rule.direction === 'output') && !toAccount;
   const isExternalIncome = rule.fromExternal === true || rule.direction === 'input';
   const externalLabel = rule.externalTarget || 'External';
+  const amountText = rule.amountType === 'earnings'
+    ? `${rule.externalAmount || 0}%`
+    : CurrencyService.formatCurrency(
+        rule.externalAmount,
+        rule.fromExternal ? rule.externalCurrency : (fromAccount?.currency || rule.externalCurrency || 'USD')
+      );
   const dateLabel = (() => {
     const start = rule.startDate ? new Date(rule.startDate).toISOString().slice(0,10) : null;
     const end = rule.endDate ? new Date(rule.endDate).toISOString().slice(0,10) : null;
     if (rule.frequency === 'one_time' && start) return `(${start})`;
     if (start && end) return `(${start} → ${end})`;
-    if (start) return `(${start})`;
+    if (start) return `(${start} → ∞)`;
     return '';
   })();
 
@@ -26,7 +32,7 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
               <>
                 From: <span className="text-green-300">External</span>{' '}
                 <span className="text-purple-200 text-sm">
-                  ({CurrencyService.formatCurrency(rule.externalAmount, rule.externalCurrency)}/{rule.frequency})
+                  ({amountText}/{rule.frequency})
                 </span>
               </>
             ) : (
@@ -50,16 +56,12 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
             ) : (
               <span className="text-red-300">Deleted Account</span>
             )}{' '}
-            {rule.amountType === 'earnings' ? (
-              <span className="text-blue-300">(earnings transfer)</span>
-            ) : (
-              <span className="text-blue-300">
-                ({CurrencyService.formatCurrency(
-                  rule.externalAmount,
-                  rule.fromExternal ? rule.externalCurrency : (fromAccount?.currency || 'USD')
-                )})
-              </span>
-            )}
+            <span className="text-blue-300">
+              ({amountText} · {rule.amountType})
+            </span>
+            {rule.externalTarget ? (
+              <span className="text-purple-200 text-xs ml-2">Label: {rule.externalTarget}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">

@@ -203,7 +203,24 @@ export function TransferRuleForm({
                   <option key={acc.id} value={acc.id}>{acc.name}</option>
                 ))}
               </select>
-              {renderAmountControls(formRule.direction === 'input')}
+              {!formRule.external && (
+                <>
+                  <label className="block text-purple-200 text-sm mb-2">Transfer To</label>
+                  <select
+                    value={formRule.toAccountId}
+                    onChange={(e) => handleChange('toAccountId', e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400 mb-2"
+                  >
+                    <option value="">Select Account</option>
+                    {accounts
+                      .filter(acc => !formRule.fromAccountId || String(acc.id) !== String(formRule.fromAccountId))
+                      .map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {!formRule.external && renderAmountControls(false)}
             </>
           ) : null}
 
@@ -213,23 +230,13 @@ export function TransferRuleForm({
               <select
                 value={formRule.toAccountId}
                 onChange={(e) => handleChange('toAccountId', e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400 mb-2"
               >
                 <option value="">Select Account</option>
                 {accounts.map(acc => (
                   <option key={acc.id} value={acc.id}>{acc.name}</option>
                 ))}
               </select>
-              <div className="mt-2">
-                <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
-                <input
-                  type="text"
-                  value={formRule.externalTarget}
-                  onChange={(e) => handleChange('externalTarget', e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                  placeholder="e.g., Paycheck, Vendor"
-                />
-              </div>
               {/* External income: fixed amount only */}
               <div className="mt-2">
                 <label className="block text-purple-200 text-sm mb-2">Amount</label>
@@ -251,38 +258,33 @@ export function TransferRuleForm({
                   </select>
                 </div>
               </div>
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
+                <input
+                  type="text"
+                  value={formRule.externalTarget}
+                  onChange={(e) => handleChange('externalTarget', e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  placeholder="e.g., Paycheck, Vendor"
+                />
+              </div>
             </>
           ) : null}
 
-          {!formRule.external && (
-            <>
-              <label className="block text-purple-200 text-sm mb-2">Transfer To</label>
-              <select
-                value={formRule.toAccountId}
-                onChange={(e) => handleChange('toAccountId', e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-              >
-                <option value="">Select Account</option>
-                {accounts
-                  .filter(acc => !formRule.fromAccountId || String(acc.id) !== String(formRule.fromAccountId))
-                  .map(acc => (
-                  <option key={acc.id} value={acc.id}>{acc.name}</option>
-                ))}
-              </select>
-            </>
-          )}
-
           {formRule.external && formRule.direction === 'output' && (
-            <div className="mt-2">
-              <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
-              <input
-                type="text"
-                value={formRule.externalTarget}
-                onChange={(e) => handleChange('externalTarget', e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                placeholder="e.g., Mortgage, Bills"
-              />
-            </div>
+            <>
+              {renderAmountControls(false)}
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm mb-2">External Target (label)</label>
+                <input
+                  type="text"
+                  value={formRule.externalTarget}
+                  onChange={(e) => handleChange('externalTarget', e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  placeholder="e.g., Mortgage, Bills"
+                />
+              </div>
+            </>
           )}
         </div>
 
