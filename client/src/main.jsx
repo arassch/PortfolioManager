@@ -120,7 +120,7 @@ function AuthScreen({ auth }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-        <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Manager</h1>
+        <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Planner</h1>
         <p className="text-purple-200 text-center mb-6">
           {mode === 'login' && 'Sign in to your account'}
           {mode === 'register' && 'Create an account to get started'}
@@ -679,11 +679,11 @@ function PortfolioManager({ auth }) {
               onClick={exportPortfolio}
               className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all text-sm"
             >
-              <Download className="w-4 h-4" />
+              <Upload className="w-4 h-4" />
               Export
             </button>
             <label className="flex items-center gap-2 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all cursor-pointer text-sm">
-              <Upload className="w-4 h-4" />
+              <Download className="w-4 h-4" />
               Import
               <input type="file" accept=".json" onChange={importPortfolio} className="hidden" />
             </label>
@@ -719,7 +719,7 @@ function PortfolioManager({ auth }) {
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
             <TrendingUp className="w-10 h-10" />
-            Portfolio Manager
+            Portfolio Planner
           </h1>
           <p className="text-purple-200">Track and project your investments & savings</p>
         </div>

@@ -1,4 +1,4 @@
-# Portfolio Manager
+# Portfolio Planner
 
 Simple portfolio projection tool with a React (Vite) frontend and an Express + PostgreSQL backend.
 
