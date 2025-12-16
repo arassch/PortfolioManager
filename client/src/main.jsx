@@ -591,6 +591,11 @@ function PortfolioManager({ auth }) {
     updatePortfolio(updatedPortfolio);
     await savePortfolio(updatedPortfolio);
   };
+  const handleInlineProjectionYears = async (value) => {
+    const parsed = Number(value);
+    const safeVal = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    await handleUpdatePortfolioSettings({ projectionYears: safeVal });
+  };
 
   // Transfer rule handlers
   const handleSaveInflationRate = async (value) => {
@@ -921,14 +926,28 @@ function PortfolioManager({ auth }) {
         )}
 
         {isAnalysisSection && (
-          <ProjectionComparisonSection
-            data={projectionComparisonData}
-            projections={projectionSeries.map(({ id, name }) => ({ id, name }))}
-            accounts={portfolio.accounts}
-            baseCurrency={portfolio.baseCurrency}
-            selectedAccounts={selectedAccounts}
-            onToggleAccount={toggleAccountSelection}
-          />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-purple-100">Projection Years</label>
+              <input
+                type="number"
+                min="1"
+                value={portfolio.projectionYears}
+                onChange={(e) => handleInlineProjectionYears(e.target.value)}
+                className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+              />
+            </div>
+            <ProjectionComparisonSection
+              data={projectionComparisonData}
+              projections={projectionSeries.map(({ id, name }) => ({ id, name }))}
+              accounts={portfolio.accounts}
+              baseCurrency={portfolio.baseCurrency}
+              selectedAccounts={selectedAccounts}
+              onToggleAccount={toggleAccountSelection}
+              projectionYears={portfolio.projectionYears}
+              onUpdateProjectionYears={handleInlineProjectionYears}
+            />
+          </div>
         )}
 
         {isProjectionSection && (
@@ -1070,6 +1089,8 @@ function PortfolioManager({ auth }) {
                 activeTab={activeTab}
                 baseCurrency={portfolio.baseCurrency}
                 inflationRate={projectionView.inflationRate}
+                projectionYears={portfolio.projectionYears}
+                onUpdateProjectionYears={handleInlineProjectionYears}
                 onTabChange={setActiveTab}
                 onToggleAccount={toggleAccountSelection}
                 onToggleIndividualAccounts={setShowIndividualAccounts}

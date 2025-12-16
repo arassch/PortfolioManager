@@ -21,7 +21,9 @@ export function ChartSection({
   onTabChange,
   onToggleAccount,
   onToggleIndividualAccounts,
-  inflationRate = 0
+  inflationRate = 0,
+  projectionYears,
+  onUpdateProjectionYears
 }) {
   const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
   const currentYear = new Date().getFullYear();
@@ -282,7 +284,19 @@ export function ChartSection({
       </div>
 
       {/* Account Filters */}
-      <div className="mb-4 flex flex-wrap gap-2 items-center">
+      <div className="mb-4 flex flex-wrap gap-3 items-center">
+        {onUpdateProjectionYears && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-purple-100">Projection Years</label>
+            <input
+              type="number"
+              min="1"
+              value={projectionYears ?? ''}
+              onChange={(e) => onUpdateProjectionYears(e.target.value)}
+              className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+            />
+          </div>
+        )}
         <span className="text-purple-200 text-sm flex items-center gap-2">
           <Filter className="w-4 h-4" />
           Filter Accounts:

@@ -22,7 +22,9 @@ export function ProjectionComparisonSection({
   accounts,
   baseCurrency,
   selectedAccounts,
-  onToggleAccount
+  onToggleAccount,
+  projectionYears,
+  onUpdateProjectionYears
 }) {
   const [hoverRow, setHoverRow] = useState(data[data.length - 1] || null);
   const formatCurrency = (value) => CurrencyService.formatCurrency(value || 0, baseCurrency);
@@ -144,7 +146,19 @@ export function ProjectionComparisonSection({
         )}
       </div>
 
-      <div className="mt-4 mb-6 flex flex-wrap gap-2 items-center">
+      <div className="mt-4 mb-6 flex flex-wrap gap-3 items-center">
+        {onUpdateProjectionYears && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-purple-100">Projection Years</label>
+            <input
+              type="number"
+              min="1"
+              value={projectionYears ?? ''}
+              onChange={(e) => onUpdateProjectionYears(e.target.value)}
+              className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+            />
+          </div>
+        )}
         <span className="text-purple-200 text-sm flex items-center gap-2">
           <Filter className="w-4 h-4" />
           Account filters (applies to all charts):
