@@ -566,11 +566,13 @@ function PortfolioManager({ auth }) {
   };
 
   const handleRenameProjection = async (projectionId) => {
-    const existing = portfolio.projections.find(p => String(p.id) === String(projectionId));
+    const targetId = projectionId || portfolio.projections[0]?.id;
+    if (!targetId) return;
+    const existing = portfolio.projections.find(p => String(p.id) === String(targetId));
     const nextName = window.prompt('Rename projection', existing?.name || 'Projection');
     if (!nextName) return;
     const updatedProjections = portfolio.projections.map(proj =>
-      String(proj.id) === String(projectionId)
+      String(proj.id) === String(targetId)
         ? new Projection({ ...proj.toJSON(), name: nextName })
         : proj
     );
@@ -817,7 +819,7 @@ function PortfolioManager({ auth }) {
                   </button>
                   <button
                     onClick={() => handleRenameProjection(targetProjectionId)}
-                    disabled={!targetProjectionId}
+                    disabled={(portfolio.projections || []).length === 0}
                     className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg transition-all text-sm"
                   >
                     <Edit2 className="w-4 h-4" />
