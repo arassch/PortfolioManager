@@ -24,7 +24,7 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
   })();
 
   return (
-    <div className="bg-white/5 rounded-lg p-4 border border-white/20">
+    <div className="bg-white/5 rounded-lg p-4">
       <div className="flex justify-between items-start">
         <div className="flex-1">
           <h4 className="text-white font-semibold mb-2">
