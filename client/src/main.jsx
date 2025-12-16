@@ -276,17 +276,27 @@ function PortfolioManager({ auth }) {
 
   // Initialize selected accounts on portfolio load
   useEffect(() => {
-    const selected = {};
-    portfolio.accounts.forEach(acc => {
-      selected[acc.id] = true;
-    });
-    setSelectedAccounts(selected);
+    const currentIds = portfolio.accounts.map(acc => String(acc.id));
+    const selectedKeys = Object.keys(selectedAccounts || {});
+    const needsInit =
+      selectedKeys.length !== currentIds.length ||
+      currentIds.some(id => selectedAccounts[id] === undefined && selectedAccounts[Number(id)] === undefined);
+
+    if (needsInit) {
+      const selected = {};
+      portfolio.accounts.forEach(acc => {
+        const prev = selectedAccounts[String(acc.id)] ?? selectedAccounts[acc.id];
+        selected[acc.id] = prev !== undefined ? prev : true;
+      });
+      setSelectedAccounts(selected);
+    }
+
     const drafts = {};
     portfolio.accounts.forEach(acc => {
       drafts[acc.id] = acc.returnRate;
     });
     setProjectionRateDrafts(drafts);
-  }, [portfolio.accounts]);
+  }, [portfolio.accounts, selectedAccounts]);
 
   useEffect(() => {
     // If projections change, keep an active projection selected when in projections tab
@@ -383,6 +393,20 @@ function PortfolioManager({ auth }) {
       ...prev,
       [accountId]: !prev[accountId]
     }));
+  };
+  const selectAllAccounts = () => {
+    const selected = {};
+    portfolio.accounts.forEach(acc => {
+      selected[acc.id] = true;
+    });
+    setSelectedAccounts(selected);
+  };
+  const selectNoAccounts = () => {
+    const selected = {};
+    portfolio.accounts.forEach(acc => {
+      selected[acc.id] = false;
+    });
+    setSelectedAccounts(selected);
   };
   const targetProjectionId = activeProjectionId || portfolio.projections[0]?.id;
   const isPortfolioSection = primaryTab === 'portfolio';
@@ -894,7 +918,6 @@ function PortfolioManager({ auth }) {
 
               <div className="space-y-3">
                 {portfolio.accounts.map(account => (
-                  <div key={account.id} className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
                     <AccountItem
                       account={account}
                       isEditing={editingAccountId === account.id}
@@ -911,7 +934,6 @@ function PortfolioManager({ auth }) {
                       enableProjectionFields={allowProjectionEditing}
                       showReturnRate={allowProjectionEditing}
                     />
-                  </div>
                 ))}
               </div>
 
@@ -946,6 +968,8 @@ function PortfolioManager({ auth }) {
               onToggleAccount={toggleAccountSelection}
               projectionYears={portfolio.projectionYears}
               onUpdateProjectionYears={handleInlineProjectionYears}
+              onSelectAllAccounts={selectAllAccounts}
+              onSelectNoAccounts={selectNoAccounts}
             />
           </div>
         )}
@@ -1093,6 +1117,8 @@ function PortfolioManager({ auth }) {
                 onUpdateProjectionYears={handleInlineProjectionYears}
                 onTabChange={setActiveTab}
                 onToggleAccount={toggleAccountSelection}
+                onSelectAllAccounts={selectAllAccounts}
+                onSelectNoAccounts={selectNoAccounts}
                 onToggleIndividualAccounts={setShowIndividualAccounts}
                 taxRate={projectionView.taxRate}
               />
