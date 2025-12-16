@@ -956,16 +956,6 @@ function PortfolioManager({ auth }) {
 
         {isAnalysisSection && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-purple-100">Projection Years</label>
-              <input
-                type="number"
-                min="1"
-                value={portfolio.projectionYears}
-                onChange={(e) => handleInlineProjectionYears(e.target.value)}
-                className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
-              />
-            </div>
             <ProjectionComparisonSection
               data={projectionComparisonData}
               projections={projectionSeries.map(({ id, name }) => ({ id, name }))}
