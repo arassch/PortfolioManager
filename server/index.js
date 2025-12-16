@@ -613,6 +613,11 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       baseCurrency: portfolio.base_currency,
       taxRate: portfolio.tax_rate,
       projectionYears: portfolio.projection_years,
+      fiMode: portfolio.fi_mode || 'annual_expenses',
+      fiMultiplier: portfolio.fi_multiplier ?? 25,
+      fiAnnualExpenses: portfolio.fi_annual_expenses ?? 0,
+      fiMonthlyExpenses: portfolio.fi_monthly_expenses ?? 0,
+      fiValue: portfolio.fi_value ?? 0,
       accounts,
       actualValues,
       projections: projectionRows.map(p => ({
@@ -644,7 +649,12 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     projections = [],
     baseCurrency,
     taxRate,
-    projectionYears
+    projectionYears,
+    fiMode = 'annual_expenses',
+    fiMultiplier = 25,
+    fiAnnualExpenses = 0,
+    fiMonthlyExpenses = 0,
+    fiValue = 0
   } = req.body;
     
     const client = await pool.connect();
@@ -663,12 +673,17 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       const primaryProjection = projections[0] || {};
       // Upsert portfolio (base settings stay on parent record)
       const portfolioRes = await client.query(
-        `INSERT INTO portfolios (user_id, base_currency, tax_rate, projection_years)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO portfolios (user_id, base_currency, tax_rate, projection_years, fi_mode, fi_multiplier, fi_annual_expenses, fi_monthly_expenses, fi_value)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (user_id) DO UPDATE SET
            base_currency = EXCLUDED.base_currency,
            tax_rate = EXCLUDED.tax_rate,
            projection_years = EXCLUDED.projection_years,
+           fi_mode = EXCLUDED.fi_mode,
+           fi_multiplier = EXCLUDED.fi_multiplier,
+           fi_annual_expenses = EXCLUDED.fi_annual_expenses,
+           fi_monthly_expenses = EXCLUDED.fi_monthly_expenses,
+           fi_value = EXCLUDED.fi_value,
            updated_at = CURRENT_TIMESTAMP
          RETURNING id`,
         [
@@ -676,6 +691,11 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           baseCurrency,
           primaryProjection.taxRate ?? taxRate,
           primaryProjection.projectionYears ?? projectionYears,
+          fiMode,
+          fiMultiplier,
+          fiAnnualExpenses,
+          fiMonthlyExpenses,
+          fiValue
         ]
       );
       const portfolioId = portfolioRes.rows[0].id;

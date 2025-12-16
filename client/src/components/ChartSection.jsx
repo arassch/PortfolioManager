@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ReferenceLine, ReferenceDot,
   PieChart, Pie, Cell
 } from 'recharts';
 import { Filter } from 'lucide-react';
@@ -25,7 +26,8 @@ export function ChartSection({
   projectionYears,
   onUpdateProjectionYears,
   onSelectAllAccounts,
-  onSelectNoAccounts
+  onSelectNoAccounts,
+  fiTarget
 }) {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
@@ -47,6 +49,11 @@ export function ChartSection({
     map[acc.id] = acc;
     return map;
   }, {});
+
+  const fiReachPoint = fiTarget
+    ? projectionData.find((p) => p.projected != null && p.projected >= fiTarget)
+    : null;
+  const fiYearLabel = fiReachPoint?.label;
 
   const buildAccountBreakdown = (current, prev) => {
     return accounts
@@ -383,6 +390,34 @@ export function ChartSection({
                 />
               <Tooltip content={renderGrowthTooltip} />
               <Legend />
+              {fiTarget > 0 && (
+                <>
+                  <ReferenceLine
+                    y={fiTarget}
+                    stroke="#34d39980"
+                    strokeDasharray="4 6"
+                    strokeWidth={1.5}
+                  />
+                  {fiYearLabel && (
+                    <ReferenceLine
+                      x={fiYearLabel}
+                      stroke="#22d3ee70"
+                      strokeDasharray="2 6"
+                      strokeWidth={1}
+                    />
+                  )}
+                  {fiYearLabel && (
+                    <ReferenceDot
+                      x={fiYearLabel}
+                      y={fiTarget}
+                      r={6}
+                      fill="#34d399"
+                      stroke="#0f172a"
+                      strokeWidth={1}
+                    />
+                  )}
+                </>
+              )}
               <Line
                 type="monotone"
                 dataKey="projected"

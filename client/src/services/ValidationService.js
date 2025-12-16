@@ -70,6 +70,19 @@ class ValidationService {
     if (settings.taxRate < 0 || settings.taxRate > 100) {
       errors.push('Tax rate must be between 0 and 100');
     }
+
+    if (settings.fiMultiplier !== undefined && settings.fiMultiplier < 0) {
+      errors.push('FI multiplier cannot be negative');
+    }
+    if (settings.fiAnnualExpenses !== undefined && settings.fiAnnualExpenses < 0) {
+      errors.push('Annual expenses cannot be negative');
+    }
+    if (settings.fiMonthlyExpenses !== undefined && settings.fiMonthlyExpenses < 0) {
+      errors.push('Monthly expenses cannot be negative');
+    }
+    if (settings.fiValue !== undefined && settings.fiValue < 0) {
+      errors.push('FI target cannot be negative');
+    }
     
     return errors;
   }

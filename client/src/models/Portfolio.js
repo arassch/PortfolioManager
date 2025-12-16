@@ -13,6 +13,11 @@ export class Portfolio {
     this.projectionYears = data.projectionYears || 10;
     this.taxRate = data.taxRate || 25;
     this.baseCurrency = data.baseCurrency || 'USD';
+    this.fiMode = data.fiMode || 'annual_expenses'; // 'value' | 'annual_expenses' | 'monthly_expenses'
+    this.fiMultiplier = data.fiMultiplier != null ? data.fiMultiplier : 25;
+    this.fiAnnualExpenses = data.fiAnnualExpenses || 0;
+    this.fiMonthlyExpenses = data.fiMonthlyExpenses || 0;
+    this.fiValue = data.fiValue || 0;
     const projectionsFromData = (data.projections || []).map(p => new Projection(p));
 
     if (projectionsFromData.length > 0) {
@@ -78,9 +83,24 @@ export class Portfolio {
       projectionYears: this.projectionYears,
       taxRate: this.taxRate,
       baseCurrency: this.baseCurrency,
+      fiTarget: this.getFiTarget(),
       getAccountById: (accountId) =>
         accounts.find(a => a.id == accountId || String(a.id) === String(accountId))
     };
+  }
+
+  getFiTarget() {
+    const multiplier = Number.isFinite(this.fiMultiplier) ? this.fiMultiplier : 25;
+    if (this.fiMode === 'value') {
+      return Math.max(Number(this.fiValue) || 0, 0);
+    }
+    if (this.fiMode === 'monthly_expenses') {
+      const monthly = Math.max(Number(this.fiMonthlyExpenses) || 0, 0);
+      return monthly * 12 * multiplier;
+    }
+    // default annual expenses
+    const annual = Math.max(Number(this.fiAnnualExpenses) || 0, 0);
+    return annual * multiplier;
   }
 
   toJSON() {
@@ -90,6 +110,11 @@ export class Portfolio {
       projectionYears: this.projectionYears,
       taxRate: this.taxRate,
       baseCurrency: this.baseCurrency,
+      fiMode: this.fiMode,
+      fiMultiplier: this.fiMultiplier,
+      fiAnnualExpenses: this.fiAnnualExpenses,
+      fiMonthlyExpenses: this.fiMonthlyExpenses,
+      fiValue: this.fiValue,
       projections: this.projections.map(proj => proj.toJSON()),
       activeProjectionId: this.activeProjectionId,
       transferRules: this.transferRules.map(rule => rule.toJSON()) // legacy fallback

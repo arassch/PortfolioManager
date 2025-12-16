@@ -340,6 +340,7 @@ function PortfolioManager({ auth }) {
       };
     });
   }, [portfolio, selectedAccounts]);
+  const fiTarget = portfolio.getFiTarget();
 
   const projectionCards = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -883,6 +884,11 @@ function PortfolioManager({ auth }) {
                   projectionYears={portfolio.projectionYears}
                   taxRate={portfolio.taxRate}
                   baseCurrency={portfolio.baseCurrency}
+                  fiMode={portfolio.fiMode}
+                  fiMultiplier={portfolio.fiMultiplier}
+                  fiAnnualExpenses={portfolio.fiAnnualExpenses}
+                  fiMonthlyExpenses={portfolio.fiMonthlyExpenses}
+                  fiValue={portfolio.fiValue}
                   onUpdate={handleUpdatePortfolioSettings}
                 />
               </div>
@@ -919,6 +925,7 @@ function PortfolioManager({ auth }) {
               <div className="space-y-3">
                 {portfolio.accounts.map(account => (
                     <AccountItem
+                      key={account.id}
                       account={account}
                       isEditing={editingAccountId === account.id}
                       onStartEdit={() => setEditingAccountId(account.id)}
@@ -970,6 +977,7 @@ function PortfolioManager({ auth }) {
               onUpdateProjectionYears={handleInlineProjectionYears}
               onSelectAllAccounts={selectAllAccounts}
               onSelectNoAccounts={selectNoAccounts}
+              fiTarget={fiTarget}
             />
           </div>
         )}
@@ -1113,15 +1121,16 @@ function PortfolioManager({ auth }) {
                 activeTab={activeTab}
                 baseCurrency={portfolio.baseCurrency}
                 inflationRate={projectionView.inflationRate}
-                projectionYears={portfolio.projectionYears}
-                onUpdateProjectionYears={handleInlineProjectionYears}
-                onTabChange={setActiveTab}
-                onToggleAccount={toggleAccountSelection}
-                onSelectAllAccounts={selectAllAccounts}
-                onSelectNoAccounts={selectNoAccounts}
-                onToggleIndividualAccounts={setShowIndividualAccounts}
-                taxRate={projectionView.taxRate}
-              />
+              projectionYears={portfolio.projectionYears}
+              onUpdateProjectionYears={handleInlineProjectionYears}
+              onTabChange={setActiveTab}
+              onToggleAccount={toggleAccountSelection}
+              onSelectAllAccounts={selectAllAccounts}
+              onSelectNoAccounts={selectNoAccounts}
+              onToggleIndividualAccounts={setShowIndividualAccounts}
+              taxRate={projectionView.taxRate}
+              fiTarget={fiTarget}
+            />
             )}
           </>
         )}

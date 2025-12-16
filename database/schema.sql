@@ -32,6 +32,11 @@ CREATE TABLE portfolios (
   base_currency VARCHAR(3) DEFAULT 'USD',
   tax_rate DECIMAL(5,2) DEFAULT 0,
   projection_years INTEGER DEFAULT 10,
+  fi_mode VARCHAR(32) DEFAULT 'annual_expenses',
+  fi_multiplier DECIMAL(10,2) DEFAULT 25,
+  fi_annual_expenses DECIMAL(15,2) DEFAULT 0,
+  fi_monthly_expenses DECIMAL(15,2) DEFAULT 0,
+  fi_value DECIMAL(15,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

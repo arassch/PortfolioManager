@@ -10,7 +10,9 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  ReferenceLine,
+  ReferenceDot
 } from 'recharts';
 import { Filter } from 'lucide-react';
 import CurrencyService from '../services/CurrencyService';
@@ -26,7 +28,8 @@ export function ProjectionComparisonSection({
   projectionYears,
   onUpdateProjectionYears,
   onSelectAllAccounts,
-  onSelectNoAccounts
+  onSelectNoAccounts,
+  fiTarget
 }) {
   const [hoverRow, setHoverRow] = useState(data[data.length - 1] || null);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
@@ -36,6 +39,17 @@ export function ProjectionComparisonSection({
   useEffect(() => {
     setHoverRow(data[data.length - 1] || null);
   }, [data]);
+
+  const fiMarkers = fiTarget
+    ? projections
+        .map((proj) => {
+          const col = `projection_${proj.id}`;
+          const hit = data.find((row) => row[col] != null && row[col] >= fiTarget);
+          if (!hit) return null;
+          return { label: hit.label, year: hit.year, name: proj.name };
+        })
+        .filter(Boolean)
+    : [];
 
   const totals = accounts.reduce(
     (acc, account) => {
@@ -234,6 +248,36 @@ export function ProjectionComparisonSection({
               />
               <Tooltip content={renderTooltip} />
               <Legend />
+              {fiTarget > 0 && (
+                <>
+                  <ReferenceLine
+                    y={fiTarget}
+                    stroke="#34d39980"
+                    strokeDasharray="4 6"
+                    strokeWidth={1.5}
+                  />
+                  {fiMarkers.map((marker, idx) => (
+                    <ReferenceLine
+                      key={`${marker.label}-${idx}`}
+                      x={marker.label}
+                      stroke="#22d3ee70"
+                      strokeDasharray="2 6"
+                      strokeWidth={1}
+                    />
+                  ))}
+                  {fiMarkers.map((marker, idx) => (
+                    <ReferenceDot
+                      key={`dot-${marker.label}-${idx}`}
+                      x={marker.label}
+                      y={fiTarget}
+                      r={6}
+                      fill="#34d399"
+                      stroke="#0f172a"
+                      strokeWidth={1}
+                    />
+                  ))}
+                </>
+              )}
               {hasActualData && (
                 <Line
                   type="monotone"
