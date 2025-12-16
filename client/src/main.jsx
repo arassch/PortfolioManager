@@ -347,15 +347,19 @@ function PortfolioManager({ auth }) {
     return projectionSeries.map((series) => {
       const finalPoint = series.data[series.data.length - 1] || {};
       const actualNow = series.data.find(d => d.year === currentYear)?.actual || null;
+      const fiHit = fiTarget > 0
+        ? series.data.find((d) => d.projected != null && d.projected >= fiTarget)
+        : null;
       return {
         id: series.id,
         name: series.name,
         createdAt: series.createdAt,
         finalProjected: finalPoint.projected,
-        currentActual: actualNow
+        currentActual: actualNow,
+        fiYear: fiHit?.year || null
       };
     });
-  }, [projectionSeries]);
+  }, [projectionSeries, fiTarget]);
 
   const projectionComparisonData = useMemo(() => {
     const years = new Set();
@@ -851,6 +855,11 @@ function PortfolioManager({ auth }) {
                       <div className="text-sm text-green-100">
                         Projected: {CurrencyService.formatCurrency(proj.finalProjected || 0, portfolio.baseCurrency)}
                       </div>
+                      {fiTarget > 0 && (
+                        <div className="text-xs text-purple-200">
+                          FI Year: {proj.fiYear ? proj.fiYear : 'Not reached'}
+                        </div>
+                      )}
                       {proj.currentActual !== null && (
                         <div className="text-xs text-blue-100">
                           Actual: {CurrencyService.formatCurrency(proj.currentActual, portfolio.baseCurrency)}
