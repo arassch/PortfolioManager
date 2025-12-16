@@ -727,48 +727,47 @@ function PortfolioManager({ auth }) {
           <p className="text-purple-200">Track and project your investments & savings</p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-white">Views</h3>
-                <p className="text-purple-200 text-sm">Portfolio data vs. Projection scenarios.</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPrimaryTab('portfolio')}
-                  className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                    isPortfolioSection
-                      ? 'bg-purple-600 text-white border-purple-400'
-                      : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Portfolio
-                </button>
-                <button
-                  onClick={() => setPrimaryTab('projections')}
-                  className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                    primaryTab === 'projections'
-                      ? 'bg-purple-600 text-white border-purple-400'
-                      : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Projections
-                </button>
-                <button
-                  onClick={() => setPrimaryTab('analysis')}
-                  className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                    primaryTab === 'analysis'
-                      ? 'bg-purple-600 text-white border-purple-400'
-                      : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Analysis
-                </button>
-              </div>
+        <div className="sticky top-0 z-30 mb-6 flex">
+          <div className="bg-slate-900/80 backdrop-blur-lg border border-white/20 rounded-xl px-3 py-3 shadow-lg flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-purple-200 px-2">Views</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPrimaryTab('portfolio')}
+                className={`px-4 py-2 rounded-lg text-sm border transition-all ${
+                  isPortfolioSection
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-500/30'
+                    : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Portfolio
+              </button>
+              <button
+                onClick={() => setPrimaryTab('projections')}
+                className={`px-4 py-2 rounded-lg text-sm border transition-all ${
+                  primaryTab === 'projections'
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-500/30'
+                    : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Projections
+              </button>
+              <button
+                onClick={() => setPrimaryTab('analysis')}
+                className={`px-4 py-2 rounded-lg text-sm border transition-all ${
+                  primaryTab === 'analysis'
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-500/30'
+                    : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Analysis
+              </button>
             </div>
+          </div>
+        </div>
 
-            {isProjectionSection && (
+        {isProjectionSection && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <h4 className="text-lg font-semibold text-white">Projection Scenarios</h4>
@@ -800,30 +799,7 @@ function PortfolioManager({ auth }) {
                   </button>
                 </div>
               </div>
-            )}
 
-            {isProjectionSection && (
-              <div className="flex flex-wrap gap-2">
-                {(portfolio.projections || []).map((proj) => {
-                  const isActive = String(proj.id) === String(activeProjectionId);
-                  return (
-                    <button
-                      key={proj.id}
-                      onClick={() => handleSelectProjection(proj.id)}
-                      className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                        isActive
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/20'
-                          : 'bg-white/5 text-purple-200 border-white/10 hover:bg-white/10'
-                      }`}
-                    >
-                      {proj.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {isProjectionSection && (
               <div className="flex flex-wrap gap-3">
                 {projectionCards.map((proj) => {
                   const isActive = String(proj.id) === String(activeProjectionId);
@@ -857,9 +833,9 @@ function PortfolioManager({ auth }) {
                   <div className="text-purple-200 text-sm">No projections yet. Add one to get started.</div>
                 )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {isPortfolioSection && (
           <>
