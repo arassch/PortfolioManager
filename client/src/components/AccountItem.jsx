@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Edit2, Save, Trash2 } from 'lucide-react';
 import CurrencyService from '../services/CurrencyService';
 
@@ -20,6 +20,11 @@ export function AccountItem({
 }) {
   const [year, setYear] = useState('');
   const [value, setValue] = useState('');
+  const [balanceDraft, setBalanceDraft] = useState(account.balance);
+
+  useEffect(() => {
+    setBalanceDraft(account.balance);
+  }, [account.balance, isEditing]);
 
   const handleAddActual = () => {
     const yearInt = parseInt(year, 10);
@@ -44,6 +49,15 @@ export function AccountItem({
   const rateLabel = account.type === 'cash' ? 'Interest' : 'Return Rate';
   const saveProjection = onSaveProjectionValue || onSaveEdit;
   const canEditRate = isEditing && enableProjectionFields;
+
+  const persistBalance = async (finish = false) => {
+    const num = parseFloat(balanceDraft);
+    const finalVal = Number.isFinite(num) ? num : 0;
+    await onSaveEdit(account.id, 'balance', finalVal);
+    if (finish) {
+      onFinishEdit?.();
+    }
+  };
 
   return (
     <div className="bg-white/5 rounded-lg p-4 border border-white/20 hover:bg-white/10 transition-all">
@@ -80,8 +94,14 @@ export function AccountItem({
               {isEditing ? (
                 <input
                   type="number"
-                  value={account.balance}
-                  onChange={(e) => onSaveEdit(account.id, 'balance', parseFloat(e.target.value) || 0)}
+                  value={balanceDraft}
+                  onChange={(e) => setBalanceDraft(e.target.value)}
+                  onBlur={() => persistBalance(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      persistBalance(true);
+                    }
+                  }}
                   className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
                 />
               ) : (
@@ -168,7 +188,10 @@ export function AccountItem({
         </div>
         <div className="flex gap-2">
           {isEditing ? (
-            <button onClick={onFinishEdit} className="p-2 text-green-400 hover:text-green-300">
+            <button
+              onClick={() => persistBalance(true)}
+              className="p-2 text-green-400 hover:text-green-300"
+            >
               <Save className="w-4 h-4" />
             </button>
           ) : (

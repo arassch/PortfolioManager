@@ -57,19 +57,17 @@ export function usePortfolioData(isAuthenticated) {
     setPortfolio(new Portfolio(newPortfolioData));
   };
 
-  const savePortfolio = async (portfolioToSave = portfolio) => {
+  const savePortfolio = async (portfolioToSave = portfolio, { skipReload = false } = {}) => {
     try {
       const payload = portfolioToSave instanceof Portfolio
         ? portfolioToSave.toJSON()
         : portfolioToSave;
 
-      const success = await StorageService.savePortfolio(payload);
-      if (success) {
-        setSaveStatus('Saved successfully!');
-        setTimeout(() => setSaveStatus(''), 3000);
-      }
+      await StorageService.savePortfolio(payload);
       // After saving, reload to get fresh data (like new account IDs) from the server
-      await loadPortfolio();
+      if (!skipReload) {
+        await loadPortfolio();
+      }
     } catch (error) {
       setSaveStatus('Save failed');
       console.error('Error saving portfolio:', error);

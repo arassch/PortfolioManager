@@ -467,7 +467,7 @@ function PortfolioManager({ auth }) {
       activeProjectionId
     });
     updatePortfolio(updatedPortfolio);
-    await savePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio, { skipReload: true });
   };
 
   const handleDeleteAccount = async (accountId) => {
