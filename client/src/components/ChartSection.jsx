@@ -59,11 +59,12 @@ export function ChartSection({
     return accounts
       .filter((acc) => selectedAccounts[acc.id])
       .map((acc) => {
-        const rate =
+        const nominalRate =
           (typeof acc.getReturnRate === 'function' ? acc.getReturnRate() : null) ??
           acc.returnRate ??
           0;
-        const realRate = rate - inflationRate;
+        const inflationPct = inflationRate ?? 0;
+        const realRatePct = ((1 + nominalRate / 100) / (1 + inflationPct / 100) - 1) * 100;
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
@@ -71,11 +72,12 @@ export function ChartSection({
         const currNet = isTaxable && current ? current[`account_${acc.id}_net`] : null;
         if (prevVal == null || currVal == null) return null;
 
-        const gross = prevVal * (1 + realRate / 100);
+        const monthlyReal = Math.pow(1 + realRatePct / 100, 1 / 12) - 1;
+        const gross = prevVal * Math.pow(1 + monthlyReal, 12);
         const transferNet = current[`account_${acc.id}_transfers`] || 0;
         const calcParts = [
           `prev ${formatCurrency(prevVal)}`,
-          `x ${realRate.toFixed(2)}%`,
+          `x real ${realRatePct.toFixed(2)}%`,
           transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
           `= ${formatCurrency(currVal)}`
         ].filter(Boolean);
@@ -107,7 +109,7 @@ export function ChartSection({
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Projected: {formatCurrency(current.projected)}</div>
-          <div className="text-xs text-purple-200">Inflation applied: {inflationRate}% subtracted from return rates.</div>
+          <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div>
           {prev && (
             <div className="text-xs text-purple-200">
               Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
@@ -150,7 +152,7 @@ export function ChartSection({
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
-          <div className="text-xs text-purple-200">Inflation applied: {inflationRate}% subtracted from return rates.</div>
+          <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div>
           {prev && (
             <div className="text-xs text-purple-200">
               From {formatCurrency(prevProjected)} → {formatCurrency(currProjected)} | Δ {formatCurrency(delta)} ({pct})

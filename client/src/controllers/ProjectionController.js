@@ -113,11 +113,12 @@ class ProjectionController {
         for (let month = 1; month <= 12; month++) {
           const monthNetGain = {};
           portfolio.accounts.forEach(account => {
-            const returnRate = account.getReturnRate();
-            const inflation = portfolio.inflationRate ?? 0;
-            const realRate = (returnRate != null ? returnRate : 0) - inflation;
-            // Convert user-entered annual rate to an equivalent monthly rate so the annualized return matches
-            const monthlyRate = Math.pow(1 + realRate / 100, 1 / 12) - 1;
+            const nominalAnnual = ((account.getReturnRate?.() ?? account.returnRate ?? 0)) / 100;
+            const inflationAnnual = (portfolio.inflationRate ?? 0) / 100;
+            // Fisher equation for real annual rate
+            const realAnnual = ((1 + nominalAnnual) / (1 + inflationAnnual)) - 1;
+            // Convert annual real rate to equivalent monthly rate
+            const monthlyRate = Math.pow(1 + realAnnual, 1 / 12) - 1;
             // If this account sends earnings away, base gains on start-of-year balance (no compounding)
             const gainBase = earningsTransferAccounts.has(account.id)
               ? yearStartBalances[account.id]
