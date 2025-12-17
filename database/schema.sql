@@ -5,6 +5,8 @@ CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  verified BOOLEAN DEFAULT FALSE,
+  verified_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -22,6 +24,14 @@ CREATE INDEX idx_refresh_tokens_family ON refresh_tokens(family_id);
 
 CREATE TABLE revoked_jti (
   jti TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE email_verification_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT UNIQUE NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

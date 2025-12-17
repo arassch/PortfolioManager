@@ -64,14 +64,25 @@ function AuthScreen({ auth }) {
   const [resetToken, setResetToken] = useState('');
   const [resetMessage, setResetMessage] = useState('');
   const [localError, setLocalError] = useState('');
+  const [showResend, setShowResend] = useState(false);
 
   // If a token is present in the URL (e.g., /reset?token=...), jump straight to confirm mode.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenFromUrl = params.get('token');
+    const verifyToken = params.get('verify');
     if (tokenFromUrl) {
       setResetToken(tokenFromUrl);
       setMode('resetConfirm');
+    } else if (verifyToken) {
+      auth.verifyEmail(verifyToken)
+        .then(() => {
+          setResetMessage('Email verified! You are now signed in.');
+          setMode('login');
+        })
+        .catch((err) => {
+          setLocalError(err.message || 'Verification failed.');
+        });
     }
   }, []);
 
@@ -79,11 +90,17 @@ function AuthScreen({ auth }) {
     e.preventDefault();
     setLocalError('');
     setResetMessage('');
+    setShowResend(false);
     try {
       if (mode === 'login') {
         await auth.login(email, password);
       } else if (mode === 'register') {
-        await auth.register(email, password);
+        const result = await auth.register(email, password);
+        if (result?.verificationSent) {
+          setResetMessage(result.message || 'Check your email to verify your account.');
+          setMode('login');
+          return;
+        }
       } else if (mode === 'resetRequest') {
         await auth.requestPasswordReset(email);
         setResetMessage('If that email exists, a reset link has been sent.');
@@ -91,6 +108,20 @@ function AuthScreen({ auth }) {
       }
     } catch (err) {
       setLocalError(err.message || 'Authentication failed');
+      if (err?.data?.needVerification || (err.message || '').toLowerCase().includes('verify')) {
+        setShowResend(true);
+      }
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setLocalError('');
+    setResetMessage('');
+    try {
+      await auth.resendVerification(email);
+      setResetMessage('Verification email sent. Check your inbox.');
+    } catch (err) {
+      setLocalError(err.message || 'Failed to resend verification email');
     }
   };
 
@@ -195,6 +226,20 @@ function AuthScreen({ auth }) {
             )}
             {resetMessage && (
               <div className="text-green-300 text-sm">{resetMessage}</div>
+            )}
+            {mode === 'login' && showResend && (
+              <div className="mt-2 text-xs text-purple-100 text-center">
+                {(localError || auth.error) && (localError?.toLowerCase().includes('verify') || auth.error?.toLowerCase().includes('verify')) && (
+                  <div className="text-red-200 mb-1">Email not verified.</div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="underline"
+                >
+                  Resend verification email
+                </button>
+              </div>
             )}
 
             <button

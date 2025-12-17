@@ -18,9 +18,14 @@ export function useAuth() {
     setError(null);
     try {
       const nextSession = await fn(email, password);
-      setSession({ user: nextSession.user, csrfToken: nextSession.csrfToken });
+      if (nextSession?.user) {
+        setSession({ user: nextSession.user, csrfToken: nextSession.csrfToken });
+      } else {
+        setSession(null);
+      }
       return nextSession;
     } catch (err) {
+      setSession(null);
       setError(err.message || 'Authentication failed');
       throw err;
     } finally {
@@ -75,6 +80,33 @@ export function useAuth() {
     await AuthService.logout();
     setSession(null);
   };
+  const verifyEmail = async (token) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const sessionData = await AuthService.verifyEmail(token);
+      setSession({ user: sessionData.user, csrfToken: sessionData.csrfToken });
+      return sessionData;
+    } catch (err) {
+      setError(err.message || 'Verification failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resendVerification = async (email) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      return await AuthService.resendVerification(email);
+    } catch (err) {
+      setError(err.message || 'Request failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     user: session?.user || null,
@@ -86,6 +118,8 @@ export function useAuth() {
     requestPasswordReset,
     confirmPasswordReset,
     deleteAccount,
-    logout
+    logout,
+    verifyEmail,
+    resendVerification
   };
 }

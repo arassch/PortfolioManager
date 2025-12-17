@@ -195,7 +195,7 @@ export function PortfolioSettings({
 
           {mode !== 'value' ? (
             <div>
-              <label className="block text-purple-200 text-sm mb-1">Anual Multiplier</label>
+              <label className="block text-purple-200 text-sm mb-1">Annual Multiplier</label>
               <input
                 type="number"
                 step="0.1"

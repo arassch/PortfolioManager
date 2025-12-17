@@ -32,7 +32,9 @@ const request = async (path, body) => {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || 'Request failed');
+    const err = new Error(data.error || 'Request failed');
+    err.data = data;
+    throw err;
   }
   return data;
 };
@@ -62,7 +64,11 @@ const login = async (email, password) => {
 
 const register = async (email, password) => {
   const session = await request('/api/auth/register', { email, password });
-  writeSession({ user: session.user, csrfToken: session.csrfToken });
+  if (session.user) {
+    writeSession({ user: session.user, csrfToken: session.csrfToken });
+  } else {
+    writeSession(null);
+  }
   return session;
 };
 
@@ -110,6 +116,16 @@ const getSession = () => readSession();
 const getUser = () => getSession()?.user || null;
 const getCsrfToken = () => getSession()?.csrfToken || null;
 
+const verifyEmail = async (token) => {
+  const session = await request('/api/auth/verify', { token });
+  writeSession({ user: session.user, csrfToken: session.csrfToken });
+  return session;
+};
+
+const resendVerification = async (email) => {
+  return request('/api/auth/verify/resend', { email });
+};
+
 export default {
   requestWithAutoRefresh,
   login,
@@ -119,6 +135,8 @@ export default {
   requestPasswordReset,
   confirmPasswordReset,
   deleteAccount,
+  verifyEmail,
+  resendVerification,
   getSession,
   getUser,
   getCsrfToken

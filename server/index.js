@@ -79,6 +79,48 @@ const sendResetEmail = async (to, token) => {
   });
 };
 
+const sendVerificationEmail = async (to, token) => {
+  const verifyBase = process.env.VERIFY_URL_BASE || process.env.CLIENT_URL || 'http://localhost:5173';
+  const verifyLink = `${verifyBase}?verify=${encodeURIComponent(token)}`;
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
+
+  // Prefer Resend API if provided (avoids SMTP port issues)
+  if (RESEND_API_KEY) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject: 'Verify your email',
+        text: `Verify your email: ${verifyLink}`,
+        html: `<p>Verify your email:</p><p><a href="${verifyLink}">${verifyLink}</a></p>`
+      })
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`Resend API failed: ${res.status} ${msg}`);
+    }
+    return;
+  }
+
+  if (!transporter) {
+    console.warn('SMTP not configured; printing verification link to console:', verifyLink);
+    return;
+  }
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: 'Verify your email',
+    text: `Verify your email: ${verifyLink}`,
+    html: `<p>Verify your email:</p><p><a href="${verifyLink}">${verifyLink}</a></p>`
+  });
+};
+
 // Middleware
 app.use(cors({
   origin: allowedOrigins,
@@ -216,6 +258,30 @@ const revokeRefreshToken = async (token) => {
   await pool.query('UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = $1', [tokenHash]);
 };
 
+const createEmailVerificationToken = async (userId) => {
+  const token = makeResetToken();
+  const tokenHash = hashToken(token);
+  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 hours
+  await pool.query(
+    `INSERT INTO email_verification_tokens (token_hash, user_id, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token_hash) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+    [tokenHash, userId, expires]
+  );
+  return token;
+};
+
+const useEmailVerificationToken = async (token) => {
+  const tokenHash = hashToken(token);
+  const res = await pool.query(
+    `DELETE FROM email_verification_tokens
+     WHERE token_hash = $1 AND expires_at > NOW()
+     RETURNING user_id`,
+    [tokenHash]
+  );
+  return res.rows[0]?.user_id || null;
+};
+
 const createPasswordResetToken = async (userId) => {
   const token = makeResetToken();
   const tokenHash = hashToken(token);
@@ -270,8 +336,18 @@ const authenticate = async (req, res, next) => {
     if (await isJtiRevoked(payload.jti)) {
       return res.status(401).json({ error: 'Unauthorized: token revoked' });
     }
-    req.userId = payload.userId;
-    req.userEmail = payload.email;
+    // Verify user still exists and is verified
+    const userRes = await pool.query('SELECT id, email, verified FROM users WHERE id = $1', [payload.userId]);
+    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: user not found' });
+    }
+    if (!user.verified) {
+      clearAuthCookies(res);
+      return res.status(403).json({ error: 'Email not verified', needVerification: true });
+    }
+    req.userId = user.id;
+    req.userEmail = user.email;
     req.jti = payload.jti;
     next();
   } catch (err) {
@@ -375,17 +451,25 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userRes = await pool.query(
-    'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
+    'INSERT INTO users (email, password_hash, verified) VALUES ($1, $2, FALSE) RETURNING id, email',
     [email, passwordHash]
   );
   const user = userRes.rows[0];
-  const { token: accessToken, jti } = signAccessToken(user);
-  const refreshToken = makeRefreshToken();
-  const csrfToken = makeCsrfToken();
-  const familyId = makeJti();
-  await saveRefreshToken(refreshToken, user.id, familyId);
-  setCookies(res, { accessToken, refreshToken, csrfToken });
-  res.json({ user, csrfToken });
+  const verifyToken = await createEmailVerificationToken(user.id);
+  try {
+    await sendVerificationEmail(user.email, verifyToken);
+  } catch (err) {
+    console.error('Failed to send verification email', err);
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(500).json({ error: 'Failed to send verification email' });
+    }
+  }
+  res.json({
+    success: true,
+    verificationSent: true,
+    message: 'Check your email to verify your account before signing in.',
+    devToken: process.env.NODE_ENV === 'production' ? undefined : verifyToken
+  });
 }));
 
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
@@ -403,7 +487,7 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   }
 
   const userRes = await pool.query(
-    'SELECT id, email, password_hash FROM users WHERE email = $1',
+    'SELECT id, email, password_hash, verified FROM users WHERE email = $1',
     [email]
   );
   const user = userRes.rows[0];
@@ -416,6 +500,10 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
+  if (!user.verified) {
+    return res.status(403).json({ error: 'Email not verified. Please check your inbox for a verification link or request a new one.', needVerification: true });
+  }
+
   const { token: accessToken, jti } = signAccessToken(user);
   const refreshToken = makeRefreshToken();
   const csrfToken = makeCsrfToken();
@@ -423,6 +511,65 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   await saveRefreshToken(refreshToken, user.id, familyId);
   setCookies(res, { accessToken, refreshToken, csrfToken });
   res.json({ user: { id: user.id, email: user.email }, csrfToken });
+}));
+
+app.post('/api/auth/verify', asyncHandler(async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ error: 'Verification token is required' });
+  }
+  const userId = await useEmailVerificationToken(token);
+  if (!userId) {
+    return res.status(400).json({ error: 'Invalid or expired verification token' });
+  }
+  const verified = await pool.query(
+    'UPDATE users SET verified = TRUE, verified_at = NOW() WHERE id = $1 RETURNING id, email',
+    [userId]
+  );
+  if (verified.rowCount === 0) {
+    return res.status(400).json({ error: 'User not found for verification' });
+  }
+  await pool.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [userId]);
+  const user = verified.rows[0];
+  const { token: accessToken, jti } = signAccessToken(user);
+  const refreshToken = makeRefreshToken();
+  const csrfToken = makeCsrfToken();
+  const familyId = makeJti();
+  await saveRefreshToken(refreshToken, user.id, familyId);
+  setCookies(res, { accessToken, refreshToken, csrfToken });
+  res.json({ user: { id: user.id, email: user.email }, csrfToken });
+}));
+
+app.post('/api/auth/verify/resend', asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+  const userRes = await pool.query('SELECT id, email, verified FROM users WHERE email = $1', [email]);
+  const user = userRes.rows[0];
+  if (!user) {
+    // Do not reveal user existence
+    return res.json({ success: true });
+  }
+  if (user.verified) {
+    return res.json({ success: true, alreadyVerified: true });
+  }
+  await pool.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [user.id]);
+  const verifyToken = await createEmailVerificationToken(user.id);
+  try {
+    await sendVerificationEmail(user.email, verifyToken);
+  } catch (err) {
+    console.error('Failed to send verification email', err);
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(500).json({ error: 'Failed to send verification email' });
+    }
+  }
+  res.json({
+    success: true,
+    verificationSent: true,
+    message: 'Verification email sent.',
+    devToken: process.env.NODE_ENV === 'production' ? undefined : verifyToken
+  });
 }));
 
 app.post('/api/auth/refresh', asyncHandler(async (req, res) => {
@@ -446,7 +593,14 @@ app.post('/api/auth/refresh', asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Refresh token expired' });
   }
 
-  const { token: accessToken, jti } = signAccessToken({ id: stored.user_id, email: stored.email || '' });
+  const userRes = await pool.query('SELECT id, email, verified FROM users WHERE id = $1', [stored.user_id]);
+  const user = userRes.rows[0];
+  if (!user || !user.verified) {
+    clearAuthCookies(res);
+    return res.status(403).json({ error: 'Email not verified', needVerification: true });
+  }
+
+  const { token: accessToken, jti } = signAccessToken({ id: user.id, email: user.email || '' });
   const newRefresh = makeRefreshToken();
   const csrfToken = makeCsrfToken();
 
