@@ -53,6 +53,8 @@ import { PortfolioSettings } from './components/PortfolioSettings';
 
 // Constants
 import { CURRENCY_SYMBOLS } from './constants/currencies';
+import { TERMS_SECTIONS, TERMS_EFFECTIVE_DATE } from './content/terms';
+import { PRIVACY_SECTIONS, PRIVACY_EFFECTIVE_DATE } from './content/privacy';
 
 function AuthScreen({ auth }) {
   const [mode, setMode] = useState('login'); // login | register | resetRequest | resetConfirm
@@ -263,6 +265,8 @@ function PortfolioManager({ auth }) {
   const [editingRuleId, setEditingRuleId] = useState(null);
   const [primaryTab, setPrimaryTab] = useState('portfolio'); // 'portfolio' | 'projections' | 'analysis'
   const [activeTab, setActiveTab] = useState('growth');
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [projectionRateDrafts, setProjectionRateDrafts] = useState({});
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
@@ -1135,7 +1139,89 @@ function PortfolioManager({ auth }) {
             )}
           </>
         )}
+
+        {/* Terms of Service - collapsible modal trigger */}
+        <div className="mt-10 flex justify-end gap-2">
+          <button
+            onClick={() => setShowPrivacy(true)}
+            className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-purple-100 hover:bg-white/15 transition"
+          >
+            Privacy Policy
+          </button>
+          <button
+            onClick={() => setShowTerms(true)}
+            className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-purple-100 hover:bg-white/15 transition"
+          >
+            Terms of Service
+          </button>
+        </div>
       </div>
+
+      {showTerms && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowTerms(false)}
+          />
+          <div className="relative max-w-3xl w-full max-h-[80vh] overflow-y-auto bg-slate-900 border border-white/20 rounded-xl p-6 text-purple-100 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-xl font-bold text-white">Terms of Service</h3>
+                <p className="text-sm text-purple-200">
+                  Contact: <a href="mailto:contact@portfolioplanner.cc" className="underline">contact@portfolioplanner.cc</a>
+                </p>
+                <p className="text-xs text-purple-300">Effective date: {TERMS_EFFECTIVE_DATE}</p>
+              </div>
+              <button
+                onClick={() => setShowTerms(false)}
+                className="text-sm px-3 py-1 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-2 text-sm leading-relaxed">
+              {TERMS_SECTIONS.map((item, idx) => (
+                <p key={idx}>
+                  <strong>{item.title}:</strong> {item.body}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPrivacy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowPrivacy(false)}
+          />
+          <div className="relative max-w-3xl w-full max-h-[80vh] overflow-y-auto bg-slate-900 border border-white/20 rounded-xl p-6 text-purple-100 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-xl font-bold text-white">Privacy Policy</h3>
+                <p className="text-sm text-purple-200">
+                  Contact: <a href="mailto:contact@portfolioplanner.cc" className="underline">contact@portfolioplanner.cc</a>
+                </p>
+                <p className="text-xs text-purple-300">Effective date: {PRIVACY_EFFECTIVE_DATE}</p>
+              </div>
+              <button
+                onClick={() => setShowPrivacy(false)}
+                className="text-sm px-3 py-1 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-2 text-sm leading-relaxed">
+              {PRIVACY_SECTIONS.map((item, idx) => (
+                <p key={idx}>
+                  <strong>{item.title}:</strong> {item.body}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
