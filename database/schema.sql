@@ -7,6 +7,12 @@ CREATE TABLE users (
   password_hash TEXT NOT NULL,
   verified BOOLEAN DEFAULT FALSE,
   verified_at TIMESTAMP,
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  subscription_status VARCHAR(50),
+  subscription_period_end TIMESTAMPTZ,
+  is_whitelisted BOOLEAN DEFAULT FALSE,
+  trial_ends_at TIMESTAMPTZ,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

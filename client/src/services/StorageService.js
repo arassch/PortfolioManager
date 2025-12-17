@@ -24,7 +24,8 @@ class StorageService {
         }
         return this.requestWithRefresh(path, { ...options, headers: refreshedHeaders }, false);
       } catch (err) {
-        throw new Error('Unauthorized');
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Unauthorized');
       }
     }
 
@@ -39,10 +40,18 @@ class StorageService {
         return new Portfolio();
       }
       if (!response.ok) {
-        throw new Error('Failed to load portfolio');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to load portfolio');
       }
       const data = await response.json();
-      return new Portfolio(data);
+      const portfolio = new Portfolio(data);
+      const meta = data.meta || {
+        subscriptionStatus: data.subscriptionStatus || data.subscription_status,
+        subscriptionPeriodEnd: data.subscriptionPeriodEnd || data.subscription_period_end,
+        trialEndsAt: data.trialEndsAt || data.trial_ends_at,
+        isWhitelisted: data.isWhitelisted
+      };
+      return { portfolio, meta };
     } catch (error) {
       console.error('Error loading portfolio:', error);
       return null;
@@ -121,6 +130,37 @@ class StorageService {
     a.download = 'portfolio_backup.json';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async startCheckout(plan) {
+    const res = await this.requestWithRefresh('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-csrf-token': AuthService.getCsrfToken() || ''
+      },
+      body: JSON.stringify({ plan })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to start checkout');
+    }
+    return data;
+  }
+
+  async openPortal() {
+    const res = await this.requestWithRefresh('/api/stripe/portal', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-csrf-token': AuthService.getCsrfToken() || ''
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to open billing portal');
+    }
+    return data;
   }
 
   async importFromJSON(file) {

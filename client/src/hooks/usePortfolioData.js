@@ -11,6 +11,8 @@ export function usePortfolioData(isAuthenticated) {
   );
   const [saveStatus, setSaveStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
 
   // Load portfolio on mount
   useEffect(() => {
@@ -32,24 +34,40 @@ export function usePortfolioData(isAuthenticated) {
     setIsLoading(true);
     const prevActiveId = portfolio?.activeProjectionId;
     const prevProjectionCount = portfolio?.projections?.length || 0;
-    const data = await StorageService.loadPortfolio();
-    if (data) {
-      setPortfolio(prev => {
-        const raw = data instanceof Portfolio ? data.toJSON() : data;
-        const nextActive =
-          (prevActiveId && raw.projections?.some(p => String(p.id) === String(prevActiveId)))
-            ? prevActiveId
-            : raw.activeProjectionId ||
-              (raw.projections && raw.projections.length > prevProjectionCount
-                ? raw.projections[raw.projections.length - 1]?.id
-                : raw.projections?.[0]?.id);
-        return new Portfolio({
-          ...raw,
-          activeProjectionId: nextActive
+    try {
+      const data = await StorageService.loadPortfolio();
+      if (data) {
+        setSubscriptionRequired(false);
+        const meta = data.meta || {
+          subscriptionStatus: data.subscriptionStatus,
+          subscriptionPeriodEnd: data.subscriptionPeriodEnd,
+          trialEndsAt: data.trialEndsAt,
+          isWhitelisted: data.isWhitelisted
+        };
+        const portfolioPayload = data.portfolio || data;
+        setSubscriptionInfo(meta || null);
+        setPortfolio(prev => {
+          const raw = portfolioPayload instanceof Portfolio ? portfolioPayload.toJSON() : portfolioPayload;
+          const nextActive =
+            (prevActiveId && raw.projections?.some(p => String(p.id) === String(prevActiveId)))
+              ? prevActiveId
+              : raw.activeProjectionId ||
+                (raw.projections && raw.projections.length > prevProjectionCount
+                  ? raw.projections[raw.projections.length - 1]?.id
+                  : raw.projections?.[0]?.id);
+          return new Portfolio({
+            ...raw,
+            activeProjectionId: nextActive
+          });
         });
-      });
+      }
+    } catch (err) {
+      if (err.message && err.message.toLowerCase().includes('subscription')) {
+        setSubscriptionRequired(true);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const updatePortfolio = (newPortfolioData) => {
@@ -104,6 +122,8 @@ export function usePortfolioData(isAuthenticated) {
     importPortfolio,
     saveStatus,
     setSaveStatus,
-    isLoading
+    isLoading,
+    subscriptionRequired,
+    subscriptionInfo
   };
 }

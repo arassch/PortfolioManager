@@ -6,9 +6,69 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import Stripe from 'stripe';
 
 const { Pool } = pkg;
 dotenv.config();
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const freeEmailList = (process.env.STRIPE_FREE_USER_EMAILS || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+const ensureSubscriptionOk = (user) => {
+  if (!user) return false;
+  const isWhitelisted = !!user.is_whitelisted;
+  if (isWhitelisted) return true;
+  const isSubActive = user.subscription_status === 'active' || user.subscription_status === 'trialing';
+  const periodOk = user.subscription_period_end ? new Date(user.subscription_period_end).getTime() > Date.now() : false;
+  const trialOk = user.trial_ends_at ? new Date(user.trial_ends_at).getTime() > Date.now() : false;
+  // Allow trialing even if period_end is missing, as long as status is trialing or trial date is in future
+  return isSubActive && (periodOk || user.subscription_status === 'trialing' || trialOk);
+};
+const stripeSuccessUrl = process.env.CLIENT_URL
+  ? `${process.env.CLIENT_URL}/?billing=success`
+  : 'http://localhost:5173/?billing=success';
+const stripeCancelUrl = process.env.CLIENT_URL
+  ? `${process.env.CLIENT_URL}/?billing=cancel`
+  : 'http://localhost:5173/?billing=cancel';
+
+const priceIds = {
+  monthly: process.env.STRIPE_MONTHLY_PRICE_ID,
+  annual: process.env.STRIPE_ANNUAL_PRICE_ID
+};
+
+const updateUserSubscriptionFromStripe = async (sub) => {
+  const status = sub.status;
+  const customerId = sub.customer;
+  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+  const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
+
+  const res = await pool.query(
+    `UPDATE users
+     SET stripe_customer_id = COALESCE($1, stripe_customer_id),
+         stripe_subscription_id = $2,
+         subscription_status = $3,
+         subscription_period_end = $4,
+         trial_ends_at = $5
+     WHERE stripe_customer_id = $1 OR stripe_subscription_id = $2
+     RETURNING id`,
+    [customerId, sub.id, status, periodEnd, trialEnd]
+  );
+
+  // If not found, try linking via metadata.userId if present
+  if (res.rowCount === 0 && sub.metadata?.userId) {
+    await pool.query(
+      `UPDATE users
+       SET stripe_customer_id = $1,
+           stripe_subscription_id = $2,
+           subscription_status = $3,
+           subscription_period_end = $4,
+           trial_ends_at = $5
+       WHERE id = $6`,
+      [customerId, sub.id, status, periodEnd, trialEnd, sub.metadata.userId]
+    );
+  }
+};
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -127,19 +187,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Parse JSON bodies (for POST, etc.)
-app.use(express.json({
-  // Add an error handler directly to the JSON parser middleware
-  verify: (req, res, buf, encoding) => {
-    try {
-      JSON.parse(buf);
-    } catch (e) {
-      console.error('Invalid JSON received:', buf.toString(encoding));
-      res.status(400).send('Invalid JSON');
-      throw new Error('Invalid JSON');
-    }
-  }
-}));
 // Enable cookie parsing for optional httpOnly auth cookie usage
 app.use((req, _res, next) => {
   const cookieHeader = req.headers.cookie;
@@ -150,7 +197,58 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Stripe webhook (raw body) - must be before express.json
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send('Stripe not configured');
+  }
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.metadata?.userId;
+        const customerId = session.customer;
+        const subscriptionId = session.subscription;
+        if (userId && customerId) {
+          await pool.query(
+            'UPDATE users SET stripe_customer_id = $1, stripe_subscription_id = $2 WHERE id = $3',
+            [customerId, subscriptionId || null, userId]
+          );
+        }
+        if (subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          await updateUserSubscriptionFromStripe(sub);
+        }
+        break;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object;
+        await updateUserSubscriptionFromStripe(sub);
+        break;
+      }
+      default:
+        console.log('Unhandled event type', event.type);
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Error handling webhook', err);
+    res.status(500).send('Webhook handler failed');
+  }
+});
+
+// Parse JSON bodies (for POST, etc.)
+app.use(express.json());
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   user: process.env.DB_USER || 'portfolio_user',
@@ -450,9 +548,10 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const isWhitelisted = freeEmailList.includes(email.toLowerCase());
   const userRes = await pool.query(
-    'INSERT INTO users (email, password_hash, verified) VALUES ($1, $2, FALSE) RETURNING id, email',
-    [email, passwordHash]
+    'INSERT INTO users (email, password_hash, verified, is_whitelisted) VALUES ($1, $2, FALSE, $3) RETURNING id, email, is_whitelisted',
+    [email, passwordHash, isWhitelisted]
   );
   const user = userRes.rows[0];
   const verifyToken = await createEmailVerificationToken(user.id);
@@ -593,7 +692,7 @@ app.post('/api/auth/refresh', asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Refresh token expired' });
   }
 
-  const userRes = await pool.query('SELECT id, email, verified FROM users WHERE id = $1', [stored.user_id]);
+  const userRes = await pool.query('SELECT id, email, verified, is_whitelisted, subscription_status, subscription_period_end FROM users WHERE id = $1', [stored.user_id]);
   const user = userRes.rows[0];
   if (!user || !user.verified) {
     clearAuthCookies(res);
@@ -619,6 +718,71 @@ app.post('/api/auth/logout', authenticate, requireCsrf, asyncHandler(async (req,
   }
   clearAuthCookies(res);
   res.json({ success: true });
+}));
+
+// Create Stripe Checkout Session
+app.post('/api/stripe/checkout', authenticate, requireCsrf, asyncHandler(async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+  const { plan } = req.body || {};
+  const priceId = priceIds[plan];
+  if (!priceId) {
+    return res.status(400).json({ error: 'Invalid plan' });
+  }
+
+  const userRes = await pool.query(
+    'SELECT id, email, stripe_customer_id, is_whitelisted FROM users WHERE id = $1',
+    [req.userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.is_whitelisted) {
+    return res.json({ free: true });
+  }
+
+  let customerId = user.stripe_customer_id;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      metadata: { userId: user.id }
+    });
+    customerId = customer.id;
+    await pool.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, user.id]);
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    subscription_data: { trial_period_days: 30, metadata: { userId: user.id } },
+    metadata: { userId: user.id },
+    success_url: stripeSuccessUrl,
+    cancel_url: stripeCancelUrl
+  });
+
+  res.json({ url: session.url });
+}));
+
+// Billing portal
+app.post('/api/stripe/portal', authenticate, requireCsrf, asyncHandler(async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+  const userRes = await pool.query(
+    'SELECT stripe_customer_id, is_whitelisted FROM users WHERE id = $1',
+    [req.userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.is_whitelisted) {
+    return res.json({ free: true });
+  }
+  if (!user.stripe_customer_id) {
+    return res.status(400).json({ error: 'No Stripe customer on file' });
+  }
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: user.stripe_customer_id,
+    return_url: stripeSuccessUrl
+  });
+  res.json({ url: portalSession.url });
 }));
 
 // Request password reset
@@ -677,16 +841,43 @@ app.delete('/api/user', authenticate, requireCsrf, asyncHandler(async (req, res)
 app.get('/api/portfolio', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
-    const portfolioRes = await pool.query(
+    const userRes = await pool.query(
+      'SELECT is_whitelisted, subscription_status, subscription_period_end, trial_ends_at FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userRes.rows[0];
+    if (!ensureSubscriptionOk(user)) {
+      return res.status(402).json({ error: 'Subscription required' });
+    }
+    let portfolioRes = await pool.query(
       'SELECT * FROM portfolios WHERE user_id = $1',
       [userId]
     );
-    
     if (portfolioRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Portfolio not found' });
+      const inserted = await pool.query(
+        `INSERT INTO portfolios (user_id, base_currency, tax_rate, projection_years, fi_mode, fi_multiplier, fi_annual_expenses, fi_monthly_expenses, fi_value)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (user_id) DO NOTHING
+         RETURNING *`,
+        [userId, 'USD', 25, 10, 'annual_expenses', 25, 0, 0, 0]
+      );
+      if (inserted.rows.length > 0) {
+        portfolioRes = { rows: [inserted.rows[0]] };
+      } else {
+        // Someone else created it; fetch again
+        portfolioRes = await pool.query(
+          'SELECT * FROM portfolios WHERE user_id = $1',
+          [userId]
+        );
+      }
     }
-    
     const portfolio = portfolioRes.rows[0];
+    const userMeta = {
+      subscriptionStatus: user.subscription_status,
+      subscriptionPeriodEnd: user.subscription_period_end,
+      trialEndsAt: user.trial_ends_at,
+      isWhitelisted: user.is_whitelisted
+    };
     
     // Accounts shared across projections
     const accountsRes = await pool.query(
@@ -772,6 +963,11 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       fiAnnualExpenses: portfolio.fi_annual_expenses ?? 0,
       fiMonthlyExpenses: portfolio.fi_monthly_expenses ?? 0,
       fiValue: portfolio.fi_value ?? 0,
+      subscriptionStatus: userMeta.subscriptionStatus,
+      subscriptionPeriodEnd: userMeta.subscriptionPeriodEnd,
+      trialEndsAt: userMeta.trialEndsAt,
+      isWhitelisted: userMeta.isWhitelisted,
+      meta: userMeta,
       accounts,
       actualValues,
       projections: projectionRows.map(p => ({
@@ -810,7 +1006,15 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     fiMonthlyExpenses = 0,
     fiValue = 0
   } = req.body;
-    
+    const userRes = await pool.query(
+      'SELECT is_whitelisted, subscription_status, subscription_period_end, trial_ends_at FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userRes.rows[0];
+    if (!ensureSubscriptionOk(user)) {
+      return res.status(402).json({ error: 'Subscription required' });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

@@ -50,6 +50,7 @@ import { TransferRuleItem } from './components/TransferRuleItem';
 import { ChartSection } from './components/ChartSection';
 import { ProjectionComparisonSection } from './components/ProjectionComparisonSection';
 import { PortfolioSettings } from './components/PortfolioSettings';
+import StorageService from './services/StorageService';
 
 // Constants
 import { CURRENCY_SYMBOLS } from './constants/currencies';
@@ -122,6 +123,41 @@ function AuthScreen({ auth }) {
       setResetMessage('Verification email sent. Check your inbox.');
     } catch (err) {
       setLocalError(err.message || 'Failed to resend verification email');
+    }
+  };
+
+  const handleStartCheckout = async (plan) => {
+    setIsStartingCheckout(true);
+    try {
+      const res = await StorageService.startCheckout(plan);
+      if (res.free) {
+        window.location.reload();
+        return;
+      }
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err) {
+      setLocalError(err.message || 'Failed to start checkout');
+    } finally {
+      setIsStartingCheckout(false);
+    }
+  };
+  const handleManageBilling = async () => {
+    setIsStartingCheckout(true);
+    try {
+      const res = await StorageService.openPortal();
+      if (res.free) {
+        alert('Your account is whitelisted; no billing needed.');
+        return;
+      }
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err) {
+      setLocalError(err.message || 'Failed to open billing portal');
+    } finally {
+      setIsStartingCheckout(false);
     }
   };
 
@@ -301,7 +337,9 @@ function PortfolioManager({ auth }) {
     exportPortfolio,
     importPortfolio,
     saveStatus,
-    isLoading
+    isLoading,
+    subscriptionRequired,
+    subscriptionInfo
   } = usePortfolioData(!!auth?.user);
 
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -312,6 +350,7 @@ function PortfolioManager({ auth }) {
   const [activeTab, setActiveTab] = useState('growth');
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [projectionRateDrafts, setProjectionRateDrafts] = useState({});
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
@@ -431,6 +470,42 @@ function PortfolioManager({ auth }) {
       });
   }, [projectionSeries]);
 
+  if (subscriptionRequired) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20 text-center text-purple-100 space-y-4">
+          <h1 className="text-3xl font-bold text-white">Start your 30-day free trial</h1>
+          <p className="text-purple-200">
+            Your email is verified, but a subscription is required after the trial. Choose monthly or annual to begin.
+          </p>
+          <div className="flex flex-col md:flex-row gap-4 justify-center">
+            <button
+              onClick={() => handleStartCheckout('monthly')}
+              disabled={isStartingCheckout}
+              className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition"
+            >
+              {isStartingCheckout ? 'Working...' : 'Start Monthly Trial'}
+            </button>
+            <button
+              onClick={() => handleStartCheckout('annual')}
+              disabled={isStartingCheckout}
+              className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition"
+            >
+              {isStartingCheckout ? 'Working...' : 'Start Annual Trial'}
+            </button>
+          </div>
+          <button
+            onClick={handleManageBilling}
+            disabled={isStartingCheckout}
+            className="text-sm underline text-purple-100"
+          >
+            Manage billing
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Helper functions
   const getAccountById = (id) => {
     if (!id) return null;
@@ -461,6 +536,40 @@ function PortfolioManager({ auth }) {
       selected[acc.id] = false;
     });
     setSelectedAccounts(selected);
+  };
+  const handleStartCheckout = async (plan) => {
+    setIsStartingCheckout(true);
+    try {
+      const res = await StorageService.startCheckout(plan);
+      if (res.free) {
+        window.location.reload();
+        return;
+      }
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to start checkout');
+    } finally {
+      setIsStartingCheckout(false);
+    }
+  };
+  const handleManageBilling = async () => {
+    setIsStartingCheckout(true);
+    try {
+      const res = await StorageService.openPortal();
+      if (res.free) {
+        alert('Your account is whitelisted; no billing needed.');
+        return;
+      }
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to open billing portal');
+    } finally {
+      setIsStartingCheckout(false);
+    }
   };
   const targetProjectionId = activeProjectionId || portfolio.projections[0]?.id;
   const isPortfolioSection = primaryTab === 'portfolio';
@@ -849,6 +958,48 @@ function PortfolioManager({ auth }) {
             </div>
           </div>
         </div>
+        {auth?.user && (
+          <div className="mb-4 bg-white/5 border border-white/15 rounded-lg p-3 text-sm text-purple-100 flex flex-wrap items-center gap-3 justify-between">
+            <div className="space-y-1">
+              <div className="font-semibold text-white">
+                Subscription status: {subscriptionInfo?.subscriptionStatus || 'Not started'}
+              </div>
+              {subscriptionInfo?.trialEndsAt && (
+                <div>Trial ends: {new Date(subscriptionInfo.trialEndsAt).toLocaleDateString()}</div>
+              )}
+              {subscriptionInfo?.subscriptionPeriodEnd && (
+                <div>Period ends: {new Date(subscriptionInfo.subscriptionPeriodEnd).toLocaleDateString()}</div>
+              )}
+              {subscriptionInfo?.isWhitelisted && <div className="text-emerald-200">Whitelisted (no billing required)</div>}
+              {!subscriptionInfo?.subscriptionStatus && (
+                <div className="text-purple-300">Start your 30-day trial to unlock the app.</div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleManageBilling}
+                disabled={isStartingCheckout}
+                className="px-3 py-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-xs text-white"
+              >
+                Manage billing
+              </button>
+              <button
+                onClick={() => handleStartCheckout('monthly')}
+                disabled={isStartingCheckout}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs text-white"
+              >
+                Start Monthly
+              </button>
+              <button
+                onClick={() => handleStartCheckout('annual')}
+                disabled={isStartingCheckout}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs text-white"
+              >
+                Start Annual
+              </button>
+            </div>
+          </div>
+        )}
 
         {isProjectionSection && (
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
