@@ -45,10 +45,11 @@ class StorageService {
       }
       const data = await response.json();
       const portfolio = new Portfolio(data);
+      const trialEnds = data.trialEndsAt || data.trial_ends_at;
       const meta = data.meta || {
         subscriptionStatus: data.subscriptionStatus || data.subscription_status,
-        subscriptionPeriodEnd: data.subscriptionPeriodEnd || data.subscription_period_end,
-        trialEndsAt: data.trialEndsAt || data.trial_ends_at,
+        subscriptionPeriodEnd: data.subscriptionPeriodEnd || data.subscription_period_end || trialEnds || null,
+        trialEndsAt: trialEnds || null,
         isWhitelisted: data.isWhitelisted
       };
       return { portfolio, meta };

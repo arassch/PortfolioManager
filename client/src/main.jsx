@@ -351,6 +351,7 @@ function PortfolioManager({ auth }) {
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
   const [projectionRateDrafts, setProjectionRateDrafts] = useState({});
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
@@ -867,9 +868,52 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
+  const renderPlanModal = () => {
+    if (!showPlanModal) return null;
+    const priceMonthly = import.meta.env.VITE_PRICE_MONTHLY || 'Monthly plan';
+    const priceAnnual = import.meta.env.VITE_PRICE_ANNUAL || 'Annual plan';
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/60" onClick={() => setShowPlanModal(false)} />
+        <div className="relative w-full max-w-md bg-slate-900 border border-white/20 rounded-xl p-6 text-purple-100 shadow-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-white">Choose a plan</h3>
+            <button
+              onClick={() => setShowPlanModal(false)}
+              className="text-sm px-3 py-1 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition"
+            >
+              Close
+            </button>
+          </div>
+          <p className="text-sm text-purple-200">Trial ends: {subscriptionInfo?.trialEndsAt ? new Date(subscriptionInfo.trialEndsAt).toLocaleDateString() : 'soon'}</p>
+          <div className="space-y-2">
+            <button
+              onClick={() => handleStartCheckout('annual')}
+              disabled={isStartingCheckout}
+              className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition"
+            >
+              {isStartingCheckout ? 'Working...' : `Subscribe Annually (${priceAnnual})`}
+            </button>
+            <button
+              onClick={() => handleStartCheckout('monthly')}
+              disabled={isStartingCheckout}
+              className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition"
+            >
+              {isStartingCheckout ? 'Working...' : `Subscribe Monthly (${priceMonthly})`}
+            </button>
+          </div>
+          <p className="text-xs text-purple-200">
+            After the trial ends, you&apos;ll need an active subscription to keep your data. Accounts without an active subscription may be deleted.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
+        {renderPlanModal()}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4 text-purple-100">
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -889,11 +933,43 @@ function PortfolioManager({ auth }) {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {auth?.user?.email && (
-              <span className="text-sm bg-white/10 px-3 py-1 rounded-full border border-white/20">
-                Signed in as {auth.user.email}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm bg-white/10 px-3 py-1 rounded-full border border-white/20">
+                  Signed in as {auth.user.email}
+                </span>
+                {subscriptionInfo?.isWhitelisted ? (
+                  <button className="text-xs px-3 py-1 rounded-full bg-emerald-700 text-white border border-emerald-400/60">
+                    Whitelisted
+                  </button>
+                ) : subscriptionInfo?.subscriptionStatus === 'trialing' ? (
+                  <button
+                    onClick={() => setShowPlanModal(true)}
+                    className="text-xs px-3 py-1 rounded-full bg-yellow-700 text-white border border-yellow-400/60"
+                  >
+                    Trial ends: {subscriptionInfo.trialEndsAt ? new Date(subscriptionInfo.trialEndsAt).toLocaleDateString() : 'soon'}
+                  </button>
+                ) : subscriptionInfo?.subscriptionStatus === 'canceled' ? (
+                  <button
+                    onClick={handleManageBilling}
+                    className="text-xs px-3 py-1 rounded-full bg-slate-700 text-white border border-white/30"
+                  >
+                    {subscriptionInfo.subscriptionPeriodEnd || subscriptionInfo.trialEndsAt
+                      ? `Valid until: ${new Date(subscriptionInfo.subscriptionPeriodEnd || subscriptionInfo.trialEndsAt).toLocaleDateString()}`
+                      : 'Valid until: pending'}
+                  </button>
+                ) : subscriptionInfo?.subscriptionStatus === 'active' ? (
+                  <button
+                    onClick={handleManageBilling}
+                    className="text-xs px-3 py-1 rounded-full bg-purple-700 text-white border border-purple-400/60"
+                  >
+                    {subscriptionInfo.subscriptionPeriodEnd || subscriptionInfo.trialEndsAt
+                      ? `Renews: ${new Date(subscriptionInfo.subscriptionPeriodEnd || subscriptionInfo.trialEndsAt).toLocaleDateString()}`
+                      : 'Renews: pending'}
+                  </button>
+                ) : null}
+              </div>
             )}
             <button
               onClick={auth?.logout}
@@ -901,16 +977,16 @@ function PortfolioManager({ auth }) {
             >
               Logout
             </button>
-          <button
-            onClick={() => {
-              if (window.confirm('This will delete your account and all associated data. Continue?')) {
-                auth?.deleteAccount();
-              }
-            }}
-            className="text-sm px-3 py-1 bg-red-900/60 hover:bg-red-800/70 border border-red-400/30 rounded-lg text-white transition"
-          >
-            Delete account
-          </button>
+            <button
+              onClick={() => {
+                if (window.confirm('This will delete your account and all associated data. Continue?')) {
+                  auth?.deleteAccount();
+                }
+              }}
+              className="text-sm px-3 py-1 bg-red-900/60 hover:bg-red-800/70 border border-red-400/30 rounded-lg text-white transition"
+            >
+              Delete account
+            </button>
           </div>
         </div>
         <div className="mb-8 text-center">
@@ -958,54 +1034,6 @@ function PortfolioManager({ auth }) {
             </div>
           </div>
         </div>
-        {auth?.user && (
-          <div className="mb-4 bg-white/5 border border-white/15 rounded-lg p-3 text-sm text-purple-100 flex flex-wrap items-center gap-3 justify-between">
-            <div className="space-y-1">
-              <div className="font-semibold text-white">
-                Subscription status: {subscriptionInfo?.subscriptionStatus || 'Not started'}
-              </div>
-              {subscriptionInfo?.trialEndsAt && (
-                <div>
-                  Trial ends: {new Date(subscriptionInfo.trialEndsAt).toLocaleDateString()} (
-                  {Math.max(0, Math.ceil((new Date(subscriptionInfo.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days left)
-                </div>
-              )}
-              {subscriptionInfo?.subscriptionPeriodEnd && (
-                <div>Period ends: {new Date(subscriptionInfo.subscriptionPeriodEnd).toLocaleDateString()}</div>
-              )}
-              {subscriptionInfo?.isWhitelisted && <div className="text-emerald-200">Whitelisted (no billing required)</div>}
-              {!subscriptionInfo?.subscriptionStatus && (
-                <div className="text-purple-300">A 30-day trial starts automatically at signup.</div>
-              )}
-              <div className="text-xs text-purple-200">
-                After the trial ends, you&apos;ll need a subscription to keep your data. Accounts without an active subscription may be deleted.
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleManageBilling}
-                disabled={isStartingCheckout}
-                className="px-3 py-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-xs text-white"
-              >
-                Manage billing
-              </button>
-              <button
-                onClick={() => handleStartCheckout('monthly')}
-                disabled={isStartingCheckout}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs text-white"
-              >
-                Start Monthly
-              </button>
-              <button
-                onClick={() => handleStartCheckout('annual')}
-                disabled={isStartingCheckout}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs text-white"
-              >
-                Start Annual
-              </button>
-            </div>
-          </div>
-        )}
 
         {isProjectionSection && (
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">

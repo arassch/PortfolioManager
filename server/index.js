@@ -46,6 +46,22 @@ const ensureSubscriptionOk = (user) => {
   }
   return false;
 };
+
+const refreshSubscriptionIfNeeded = async (user) => {
+  if (!stripe || !user || !user.stripe_subscription_id) return user;
+  const missingCore = !user.subscription_period_end || !user.subscription_status;
+  const staleActive = ['active', 'trialing'].includes(user.subscription_status || '') && !user.subscription_period_end;
+  const needsRefresh = missingCore || staleActive;
+  if (!needsRefresh) return user;
+  try {
+    const sub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    const updated = await updateUserSubscriptionFromStripe(sub);
+    return updated || user;
+  } catch (err) {
+    console.error('Failed to refresh subscription from Stripe', err.message);
+  }
+  return user;
+};
 const stripeSuccessUrl = process.env.CLIENT_URL
   ? `${process.env.CLIENT_URL}/?billing=success`
   : 'http://localhost:5173/?billing=success';
@@ -59,36 +75,48 @@ const priceIds = {
 };
 
 const updateUserSubscriptionFromStripe = async (sub) => {
+  if (!sub) return null;
   const status = sub.status;
+  const hasScheduledCancel = !!sub.cancel_at || !!sub.cancel_at_period_end;
+  const effectiveStatus = hasScheduledCancel ? 'canceled' : status;
   const customerId = sub.customer;
-  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+  const rawPeriodEnd = sub.current_period_end || sub.items?.data?.[0]?.current_period_end || sub.cancel_at || null;
+  const periodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000) : null;
   const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
+  const effectiveEnd = periodEnd || trialEnd || null;
+  console.log(`Updating subscription for customer ${customerId}: status=${effectiveStatus}, periodEnd=${effectiveEnd}, trialEnd=${trialEnd}`);
 
-  const res = await pool.query(
+  let res = await pool.query(
     `UPDATE users
      SET stripe_customer_id = COALESCE($1, stripe_customer_id),
          stripe_subscription_id = $2,
          subscription_status = $3,
          subscription_period_end = $4,
-         trial_ends_at = $5
+         trial_ends_at = COALESCE($5, trial_ends_at)
      WHERE stripe_customer_id = $1 OR stripe_subscription_id = $2
-     RETURNING id`,
-    [customerId, sub.id, status, periodEnd, trialEnd]
+     RETURNING *`,
+    [customerId, sub.id, effectiveStatus, effectiveEnd, trialEnd]
   );
 
-  // If not found, try linking via metadata.userId if present
   if (res.rowCount === 0 && sub.metadata?.userId) {
-    await pool.query(
+    res = await pool.query(
       `UPDATE users
        SET stripe_customer_id = $1,
            stripe_subscription_id = $2,
            subscription_status = $3,
            subscription_period_end = $4,
            trial_ends_at = $5
-       WHERE id = $6`,
-      [customerId, sub.id, status, periodEnd, trialEnd, sub.metadata.userId]
+       WHERE id = $6
+       RETURNING *`,
+      [customerId, sub.id, effectiveStatus, effectiveEnd, trialEnd, sub.metadata.userId]
     );
   }
+
+  if (res.rowCount === 0) {
+    return null;
+  }
+
+  return res.rows[0];
 };
 
 const app = express();
@@ -609,10 +637,10 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   }
 
   const userRes = await pool.query(
-    'SELECT id, email, password_hash, verified FROM users WHERE email = $1',
+    'SELECT id, email, password_hash, verified, stripe_subscription_id FROM users WHERE email = $1',
     [email]
   );
-  const user = userRes.rows[0];
+  let user = userRes.rows[0];
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -624,6 +652,19 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
 
   if (!user.verified) {
     return res.status(403).json({ error: 'Email not verified. Please check your inbox for a verification link or request a new one.', needVerification: true });
+  }
+
+  // Always refresh Stripe subscription on login if available
+  if (stripe && user.stripe_subscription_id) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+      const updated = await updateUserSubscriptionFromStripe(sub);
+      if (updated) {
+        user = { ...user, ...updated };
+      }
+    } catch (err) {
+      console.error('Failed to refresh subscription on login', err.message);
+    }
   }
 
   const { token: accessToken, jti } = signAccessToken(user);
@@ -870,6 +911,7 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       [userId]
     );
     let user = userRes.rows[0];
+    user = await refreshSubscriptionIfNeeded(user);
     user = await provisionTrialIfNeeded(user);
     if (!ensureSubscriptionOk(user)) {
       return res.status(402).json({ error: 'Subscription required' });
@@ -1036,6 +1078,7 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       [userId]
     );
     let user = userRes.rows[0];
+    user = await refreshSubscriptionIfNeeded(user);
     user = await provisionTrialIfNeeded(user);
     if (!ensureSubscriptionOk(user)) {
       return res.status(402).json({ error: 'Subscription required' });
