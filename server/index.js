@@ -15,15 +15,36 @@ const freeEmailList = (process.env.STRIPE_FREE_USER_EMAILS || '')
   .split(',')
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
+
+const provisionTrialIfNeeded = async (user) => {
+  if (!user || user.is_whitelisted) return user;
+  const hasStatus = !!user.subscription_status;
+  const hasTrial = !!user.trial_ends_at;
+  if (hasStatus || hasTrial) return user;
+  const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const updated = await pool.query(
+    `UPDATE users
+     SET subscription_status = 'trialing',
+         trial_ends_at = $1
+     WHERE id = $2
+     RETURNING *`,
+    [trialEnds, user.id]
+  );
+  return updated.rows[0] || user;
+};
 const ensureSubscriptionOk = (user) => {
   if (!user) return false;
   const isWhitelisted = !!user.is_whitelisted;
   if (isWhitelisted) return true;
-  const isSubActive = user.subscription_status === 'active' || user.subscription_status === 'trialing';
-  const periodOk = user.subscription_period_end ? new Date(user.subscription_period_end).getTime() > Date.now() : false;
   const trialOk = user.trial_ends_at ? new Date(user.trial_ends_at).getTime() > Date.now() : false;
-  // Allow trialing even if period_end is missing, as long as status is trialing or trial date is in future
-  return isSubActive && (periodOk || user.subscription_status === 'trialing' || trialOk);
+  if (trialOk) return true;
+  if (user.subscription_status === 'trialing') return true;
+  if (user.subscription_status === 'active') {
+    // Allow active even if period_end is missing
+    const periodOk = user.subscription_period_end ? new Date(user.subscription_period_end).getTime() > Date.now() : true;
+    return periodOk;
+  }
+  return false;
 };
 const stripeSuccessUrl = process.env.CLIENT_URL
   ? `${process.env.CLIENT_URL}/?billing=success`
@@ -549,9 +570,11 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const isWhitelisted = freeEmailList.includes(email.toLowerCase());
+  const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  const initialStatus = isWhitelisted ? 'active' : 'trialing';
   const userRes = await pool.query(
-    'INSERT INTO users (email, password_hash, verified, is_whitelisted) VALUES ($1, $2, FALSE, $3) RETURNING id, email, is_whitelisted',
-    [email, passwordHash, isWhitelisted]
+    'INSERT INTO users (email, password_hash, verified, is_whitelisted, subscription_status, trial_ends_at) VALUES ($1, $2, FALSE, $3, $4, $5) RETURNING id, email, is_whitelisted, trial_ends_at, subscription_status',
+    [email, passwordHash, isWhitelisted, initialStatus, isWhitelisted ? null : trialEnds]
   );
   const user = userRes.rows[0];
   const verifyToken = await createEmailVerificationToken(user.id);
@@ -754,7 +777,8 @@ app.post('/api/stripe/checkout', authenticate, requireCsrf, asyncHandler(async (
     payment_method_types: ['card'],
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    subscription_data: { trial_period_days: 30, metadata: { userId: user.id } },
+    // Trial already granted at signup; don't add another Stripe trial
+    subscription_data: { metadata: { userId: user.id } },
     metadata: { userId: user.id },
     success_url: stripeSuccessUrl,
     cancel_url: stripeCancelUrl
@@ -842,10 +866,11 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
     const userRes = await pool.query(
-      'SELECT is_whitelisted, subscription_status, subscription_period_end, trial_ends_at FROM users WHERE id = $1',
+      'SELECT * FROM users WHERE id = $1',
       [userId]
     );
-    const user = userRes.rows[0];
+    let user = userRes.rows[0];
+    user = await provisionTrialIfNeeded(user);
     if (!ensureSubscriptionOk(user)) {
       return res.status(402).json({ error: 'Subscription required' });
     }
@@ -1007,10 +1032,11 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     fiValue = 0
   } = req.body;
     const userRes = await pool.query(
-      'SELECT is_whitelisted, subscription_status, subscription_period_end, trial_ends_at FROM users WHERE id = $1',
+      'SELECT * FROM users WHERE id = $1',
       [userId]
     );
-    const user = userRes.rows[0];
+    let user = userRes.rows[0];
+    user = await provisionTrialIfNeeded(user);
     if (!ensureSubscriptionOk(user)) {
       return res.status(402).json({ error: 'Subscription required' });
     }

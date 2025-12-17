@@ -965,15 +965,21 @@ function PortfolioManager({ auth }) {
                 Subscription status: {subscriptionInfo?.subscriptionStatus || 'Not started'}
               </div>
               {subscriptionInfo?.trialEndsAt && (
-                <div>Trial ends: {new Date(subscriptionInfo.trialEndsAt).toLocaleDateString()}</div>
+                <div>
+                  Trial ends: {new Date(subscriptionInfo.trialEndsAt).toLocaleDateString()} (
+                  {Math.max(0, Math.ceil((new Date(subscriptionInfo.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days left)
+                </div>
               )}
               {subscriptionInfo?.subscriptionPeriodEnd && (
                 <div>Period ends: {new Date(subscriptionInfo.subscriptionPeriodEnd).toLocaleDateString()}</div>
               )}
               {subscriptionInfo?.isWhitelisted && <div className="text-emerald-200">Whitelisted (no billing required)</div>}
               {!subscriptionInfo?.subscriptionStatus && (
-                <div className="text-purple-300">Start your 30-day trial to unlock the app.</div>
+                <div className="text-purple-300">A 30-day trial starts automatically at signup.</div>
               )}
+              <div className="text-xs text-purple-200">
+                After the trial ends, you&apos;ll need a subscription to keep your data. Accounts without an active subscription may be deleted.
+              </div>
             </div>
             <div className="flex gap-2">
               <button
