@@ -634,12 +634,6 @@ function PortfolioManager({ auth }) {
       });
       setSelectedAccounts(selected);
     }
-
-    const drafts = {};
-    portfolio.accounts.forEach(acc => {
-      drafts[acc.id] = acc.returnRate;
-    });
-    setProjectionRateDrafts(drafts);
   }, [portfolio.accounts, selectedAccounts]);
 
   useEffect(() => {
@@ -654,12 +648,13 @@ function PortfolioManager({ auth }) {
   }, [primaryTab, portfolio.projections, activeProjectionId, portfolio, updatePortfolio]);
 
   useEffect(() => {
+    if (primaryTab !== 'projections') return;
     const drafts = {};
     projectionView.accounts.forEach(acc => {
       drafts[acc.id] = acc.returnRate;
     });
     setProjectionRateDrafts(drafts);
-  }, [projectionView.accounts]);
+  }, [primaryTab, projectionView.accounts]);
 
   // Calculate projections
   const projectionData = useProjections(
@@ -1356,8 +1351,10 @@ function PortfolioManager({ auth }) {
                     <button
                       key={proj.id}
                       onClick={() => handleSelectProjection(proj.id)}
-                      className={`flex-1 min-w-[240px] text-left bg-white/5 border border-white/10 rounded-lg p-4 transition-all ${
-                        isActive ? 'border-purple-400/70 shadow-lg shadow-purple-500/20' : 'hover:border-white/30'
+                      className={`flex-1 min-w-[240px] text-left bg-white/5 border rounded-lg p-4 transition-all ${
+                        isActive
+                          ? 'border-purple-300 ring-2 ring-purple-400/60 shadow-xl shadow-purple-500/30 bg-purple-500/10'
+                          : 'border-white/10 hover:border-white/30'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">

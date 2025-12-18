@@ -46,19 +46,23 @@ export function usePortfolioData(isAuthenticated) {
         };
         const portfolioPayload = data.portfolio || data;
         setSubscriptionInfo(meta || null);
-        setPortfolio(prev => {
+        setPortfolio(() => {
           const raw = portfolioPayload instanceof Portfolio ? portfolioPayload.toJSON() : portfolioPayload;
+          const projections = raw.projections || [];
+          const prevStillExists = prevActiveId && projections.some(p => String(p.id) === String(prevActiveId));
+          const createdNewProjection = projections.length > prevProjectionCount;
+
           const nextActive =
-            (prevActiveId && raw.projections?.some(p => String(p.id) === String(prevActiveId)))
-              ? prevActiveId
-              : raw.activeProjectionId ||
-                (raw.projections && raw.projections.length > prevProjectionCount
-                  ? raw.projections[raw.projections.length - 1]?.id
-                  : raw.projections?.[0]?.id);
-          return new Portfolio({
-            ...raw,
-            activeProjectionId: nextActive
-          });
+            // If a new projection was created since last load, prefer the newest one.
+            (createdNewProjection ? projections[projections.length - 1]?.id : null) ||
+            // Otherwise keep whatever the user had selected, if it still exists.
+            (prevStillExists ? prevActiveId : null) ||
+            raw.activeProjectionId ||
+            projections[projections.length - 1]?.id ||
+            projections[0]?.id ||
+            null;
+
+          return new Portfolio({ ...raw, activeProjectionId: nextActive });
         });
       }
     } catch (err) {
