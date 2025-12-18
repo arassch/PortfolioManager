@@ -124,10 +124,24 @@ const updateUserSubscriptionFromStripe = async (sub) => {
 
 const app = express();
 const port = process.env.PORT || 5001;
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
+const defaultOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const clientUrlOrigin = (() => {
+  const raw = process.env.CLIENT_URL;
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+})();
+const allowedOrigins = Array.from(
+  new Set(
+    (process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins)
+      .map(o => o.trim())
+      .filter(Boolean)
+      .concat(clientUrlOrigin ? [clientUrlOrigin] : [])
+  )
+);
 const ACCESS_TOKEN_TTL = process.env.JWT_TTL || '10m'; // short-lived
 const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days sliding
 const REVOKED_JTI_TTL_MS = 1000 * 60 * 60 * 24; // keep blacklisted jti for 24h
@@ -1005,6 +1019,43 @@ app.delete('/api/user', authenticate, requireCsrf, asyncHandler(async (req, res)
   await pool.query('DELETE FROM users WHERE id = $1', [userId]);
   clearAuthCookies(res);
   res.json({ success: true });
+}));
+
+// Onboarding tour state (per-user)
+app.get('/api/user/onboarding', authenticate, asyncHandler(async (req, res) => {
+  const userRes = await pool.query(
+    'SELECT onboarding_version, onboarding_step, onboarding_completed_at FROM users WHERE id = $1',
+    [req.userId]
+  );
+  const row = userRes.rows[0];
+  res.json({
+    version: row?.onboarding_version ?? 1,
+    step: row?.onboarding_step ?? 0,
+    completedAt: row?.onboarding_completed_at ?? null
+  });
+}));
+
+app.post('/api/user/onboarding', authenticate, requireCsrf, asyncHandler(async (req, res) => {
+  const { version, step, completed } = req.body || {};
+  const nextVersion = Number.isFinite(Number(version)) ? Number(version) : 1;
+  const nextStep = Number.isFinite(Number(step)) ? Math.max(0, Math.floor(Number(step))) : 0;
+  const markCompleted = completed === true;
+
+  const updated = await pool.query(
+    `UPDATE users
+     SET onboarding_version = $2,
+         onboarding_step = $3,
+         onboarding_completed_at = CASE WHEN $4 THEN NOW() ELSE NULL END
+     WHERE id = $1
+     RETURNING onboarding_version, onboarding_step, onboarding_completed_at`,
+    [req.userId, nextVersion, nextStep, markCompleted]
+  );
+  const row = updated.rows[0];
+  res.json({
+    version: row?.onboarding_version ?? nextVersion,
+    step: row?.onboarding_step ?? nextStep,
+    completedAt: row?.onboarding_completed_at ?? (markCompleted ? new Date().toISOString() : null)
+  });
 }));
 
 // Routes

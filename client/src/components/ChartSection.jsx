@@ -262,7 +262,7 @@ export function ChartSection({
   };
 
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
+    <div data-tour="projection-chart" className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
       <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
         <div>
           <p className="text-xs uppercase text-purple-200 tracking-wide">Projection view</p>

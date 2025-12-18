@@ -144,7 +144,7 @@ export function ProjectionComparisonSection({
   }
 
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
+    <div data-tour="analysis-chart" className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-8 border border-white/20">
       <div className="flex justify-between items-start gap-3 flex-wrap">
         <div>
           <p className="text-xs uppercase text-purple-200 tracking-wide">Portfolio Overview</p>

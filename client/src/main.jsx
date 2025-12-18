@@ -50,6 +50,7 @@ import { TransferRuleItem } from './components/TransferRuleItem';
 import { ChartSection } from './components/ChartSection';
 import { ProjectionComparisonSection } from './components/ProjectionComparisonSection';
 import { PortfolioSettings } from './components/PortfolioSettings';
+import { OnboardingTour } from './components/OnboardingTour';
 import StorageService from './services/StorageService';
 
 // Constants
@@ -420,12 +421,195 @@ function PortfolioManager({ auth }) {
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
   const [showActualInput, setShowActualInput] = useState(null);
+  const ONBOARDING_VERSION = 1;
+  const [onboardingState, setOnboardingState] = useState(null);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  const [onboardingError, setOnboardingError] = useState(null);
+  const lastTourAutoAdvanceRef = useRef(0);
   const activeProjection = portfolio.getActiveProjection();
   const activeProjectionId = activeProjection?.id;
   const projectionView = useMemo(
     () => portfolio.buildProjectionView(activeProjectionId),
     [portfolio, activeProjectionId]
   );
+
+  const tourSteps = useMemo(() => ([
+    {
+      title: 'Views',
+      target: '[data-tour="nav-views"]',
+      content: 'Use these buttons to switch between:\n• Portfolio: add accounts + FI target\n• Projections: create scenarios and rules\n• Analysis: compare scenarios'
+    },
+    {
+      title: 'Create Your First Account',
+      target: '[data-tour="account-form"]',
+      content: 'Add an account name, type, balance, and return rate.\nTip: Return rate is nominal; inflation is applied later in projections.'
+    },
+    {
+      title: 'Projection Return Rates & Inflation',
+      target: '[data-tour="return-rates"]',
+      content: 'Inside each projection, you can adjust:\n• Inflation rate (scenario-specific)\n• Account return rates (scenario-specific)\n\nThis lets you model different market assumptions without changing your base portfolio.'
+    },
+    {
+      title: 'Projections & Transfer Rules',
+      target: '[data-tour="transfer-rules"]',
+      content: 'Transfer rules move money between accounts over time (or from/to external income/expenses).'
+    },
+    {
+      title: 'Scenario Copying',
+      target: '[data-tour="add-projection"]',
+      content: 'Creating a new projection copies the active one so you can tweak return rates, inflation, and transfer rules without changing other scenarios.'
+    },
+    {
+      title: 'Charts & Tooltip',
+      target: '[data-tour="projection-chart"]',
+      content: 'Hover the chart to see the tooltip with calculations.\nUse Filter Accounts to include/exclude accounts, and toggle individual accounts for more detail.'
+    },
+    {
+      title: 'Analysis View',
+      target: '[data-tour="analysis-chart"]',
+      content: 'Analysis compares multiple projections side-by-side so you can see how different scenarios perform.'
+    }
+  ]), []);
+
+  const prepareTourStep = async (nextStep) => {
+    setOnboardingError(null);
+    if (nextStep === 0) {
+      setPrimaryTab('portfolio');
+      setShowAddAccount(false);
+      setShowAddRule(false);
+    } else if (nextStep === 1) {
+      setPrimaryTab('portfolio');
+      setShowAddAccount(true);
+      setShowAddRule(false);
+    } else if (nextStep === 2 || nextStep === 3 || nextStep === 4 || nextStep === 5) {
+      setPrimaryTab('projections');
+      setShowAddAccount(false);
+      setShowAddRule(false);
+    } else if (nextStep === 6) {
+      setPrimaryTab('analysis');
+      setShowAddAccount(false);
+      setShowAddRule(false);
+    }
+    // give React a tick to render the target
+    await new Promise((r) => setTimeout(r, 50));
+  };
+
+  const persistOnboarding = async ({ step, completed }) => {
+    try {
+      const updated = await StorageService.updateOnboarding({
+        version: ONBOARDING_VERSION,
+        step,
+        completed
+      });
+      setOnboardingState(updated);
+    } catch (err) {
+      setOnboardingError(err.message || 'Failed to save onboarding progress');
+    }
+  };
+
+  const startTour = async (startAt = 0) => {
+    await prepareTourStep(startAt);
+    setTourStep(startAt);
+    setTourOpen(true);
+    await persistOnboarding({ step: startAt, completed: false });
+  };
+
+  const closeTour = async ({ completed } = { completed: false }) => {
+    setTourOpen(false);
+    if (completed) {
+      await persistOnboarding({ step: tourSteps.length, completed: true });
+    } else {
+      await persistOnboarding({ step: tourStep, completed: false });
+    }
+  };
+
+  const nextTour = async () => {
+    if (tourStep === 1 && (portfolio.accounts || []).length === 0) {
+      setOnboardingError('Please create at least one account to continue.');
+      return;
+    }
+    if (tourStep >= tourSteps.length - 1) {
+      await closeTour({ completed: true });
+      return;
+    }
+    const next = tourStep + 1;
+    await prepareTourStep(next);
+    setTourStep(next);
+    await persistOnboarding({ step: next, completed: false });
+  };
+
+  // Auto-advance step 2 (create account) once an account exists
+  useEffect(() => {
+    if (!tourOpen) return;
+    if (tourStep !== 1) return;
+    if ((portfolio.accounts || []).length === 0) return;
+    const now = Date.now();
+    if (now - lastTourAutoAdvanceRef.current < 1500) return;
+    lastTourAutoAdvanceRef.current = now;
+    const t = setTimeout(() => {
+      nextTour();
+    }, 200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourOpen, tourStep, portfolio.accounts.length]);
+
+  const backTour = async () => {
+    const prev = Math.max(0, tourStep - 1);
+    await prepareTourStep(prev);
+    setTourStep(prev);
+    await persistOnboarding({ step: prev, completed: false });
+  };
+
+  // Load onboarding state for this user (per-user, stored in DB)
+  useEffect(() => {
+    if (!auth?.user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const state = await StorageService.getOnboarding();
+        if (cancelled) return;
+        setOnboardingState(state);
+      } catch (err) {
+        if (cancelled) return;
+        setOnboardingError(err.message || 'Failed to load onboarding state');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth?.user?.id]);
+
+  const tourCanNext = useMemo(() => {
+    if (!tourOpen) return true;
+    if (tourStep === 1) {
+      return (portfolio.accounts || []).length > 0;
+    }
+    return true;
+  }, [tourOpen, tourStep, portfolio.accounts]);
+
+  const tourNextDisabledReason = useMemo(() => {
+    if (!tourOpen) return '';
+    if (tourStep === 1 && (portfolio.accounts || []).length === 0) {
+      return 'Create an account to continue.';
+    }
+    return '';
+  }, [tourOpen, tourStep, portfolio.accounts]);
+
+  // Auto-start tour for users who haven't completed it
+  useEffect(() => {
+    if (!auth?.user) return;
+    if (!onboardingState) return;
+    const completed = !!onboardingState.completedAt;
+    if (completed) return;
+    if (tourOpen) return;
+    const startAtRaw = Number.isFinite(Number(onboardingState.step)) ? Number(onboardingState.step) : 0;
+    const startAt = Math.min(Math.max(startAtRaw, 0), Math.max(tourSteps.length - 1, 0));
+    // Only auto-run when user is in the app (portfolio loaded)
+    if (isLoading) return;
+    startTour(startAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.user?.id, onboardingState?.completedAt, onboardingState?.step, isLoading]);
 
   // Initialize selected accounts on portfolio load
   useEffect(() => {
@@ -978,6 +1162,21 @@ function PortfolioManager({ auth }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
         {renderPlanModal()}
+        <OnboardingTour
+          isOpen={tourOpen}
+          steps={tourSteps}
+          stepIndex={tourStep}
+          canNext={tourCanNext}
+          nextDisabledReason={tourNextDisabledReason}
+          onBack={backTour}
+          onNext={nextTour}
+          onSkip={() => closeTour({ completed: true })}
+        />
+        {onboardingError && (
+          <div className="mb-3 text-sm text-yellow-200">
+            {onboardingError}
+          </div>
+        )}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4 text-purple-100">
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -1003,6 +1202,14 @@ function PortfolioManager({ auth }) {
                 <span className="text-sm bg-white/10 px-3 py-1 rounded-full border border-white/20">
                   Signed in as {auth.user.email}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => startTour(0)}
+                  className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 transition"
+                  title="Restart the introduction tour"
+                >
+                  Tour
+                </button>
                 {subscriptionInfo?.isWhitelisted ? (
                   <button className="text-xs px-3 py-1 rounded-full bg-emerald-700 text-white border border-emerald-400/60">
                     Whitelisted
@@ -1062,7 +1269,7 @@ function PortfolioManager({ auth }) {
         </div>
 
         <div className="sticky top-0 z-30 mb-6 flex">
-          <div className="bg-slate-900/80 backdrop-blur-lg border border-white/20 rounded-xl px-3 py-3 shadow-lg flex items-center gap-2">
+          <div data-tour="nav-views" className="bg-slate-900/80 backdrop-blur-lg border border-white/20 rounded-xl px-3 py-3 shadow-lg flex items-center gap-2">
             <span className="text-xs uppercase tracking-wide text-purple-200 px-2">Views</span>
             <div className="flex gap-2">
               <button
@@ -1110,6 +1317,7 @@ function PortfolioManager({ auth }) {
                 <div className="flex gap-2">
                   <button
                     onClick={handleAddProjection}
+                    data-tour="add-projection"
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all text-sm"
                   >
                     <Plus className="w-4 h-4" />
@@ -1214,6 +1422,7 @@ function PortfolioManager({ auth }) {
                 </div>
                 <button
                   onClick={() => setShowAddAccount(!showAddAccount)}
+                  data-tour="add-account-btn"
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all"
                 >
                   <Plus className="w-4 h-4" />
@@ -1222,7 +1431,7 @@ function PortfolioManager({ auth }) {
               </div>
 
               {showAddAccount && (
-                <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
+                <div data-tour="account-form" className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
                   <AccountForm
                     onSubmit={handleAddAccount}
                     onCancel={() => setShowAddAccount(false)}
@@ -1285,7 +1494,7 @@ function PortfolioManager({ auth }) {
           <>
             {activeProjection && (
               <div className="grid lg:grid-cols-5 gap-4 mb-8">
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 lg:col-span-2">
+                <div data-tour="return-rates" className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 lg:col-span-2">
                   <div className="flex flex-col gap-2 mb-3">
                     <div className="flex items-center gap-2">
                       <label className="text-sm text-purple-100">Inflation %</label>
@@ -1346,7 +1555,7 @@ function PortfolioManager({ auth }) {
                   </div>
                 </div>
 
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-5 border border-white/20 lg:col-span-3">
+                <div data-tour="transfer-rules" className="bg-white/10 backdrop-blur-lg rounded-xl p-5 border border-white/20 lg:col-span-3">
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-white">Transfer Rules</h3>

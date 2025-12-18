@@ -164,6 +164,31 @@ class StorageService {
     return data;
   }
 
+  async getOnboarding() {
+    const response = await this.requestWithRefresh('/api/user/onboarding');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load onboarding state');
+    }
+    return data;
+  }
+
+  async updateOnboarding({ version, step, completed }) {
+    const response = await this.requestWithRefresh('/api/user/onboarding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': AuthService.getCsrfToken() || ''
+      },
+      body: JSON.stringify({ version, step, completed })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update onboarding state');
+    }
+    return data;
+  }
+
   async importFromJSON(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
