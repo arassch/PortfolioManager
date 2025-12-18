@@ -518,6 +518,13 @@ function PortfolioManager({ auth }) {
   const closeTour = async ({ completed } = { completed: false }) => {
     setTourOpen(false);
     if (completed) {
+      setPrimaryTab('portfolio');
+      setShowAddAccount(true);
+      setShowAddRule(false);
+      setTimeout(() => {
+        const el = document.querySelector('[data-tour="add-account-btn"]') || document.querySelector('[data-tour="account-form"]');
+        el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }, 150);
       await persistOnboarding({ step: tourSteps.length, completed: true });
     } else {
       await persistOnboarding({ step: tourStep, completed: false });
