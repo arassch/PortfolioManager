@@ -4,9 +4,10 @@
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   verified BOOLEAN DEFAULT FALSE,
   verified_at TIMESTAMP,
+  google_sub TEXT UNIQUE,
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   subscription_status VARCHAR(50),

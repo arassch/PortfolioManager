@@ -35,6 +35,21 @@ export function useAuth() {
 
   const login = (email, password) => perform(AuthService.login, email, password);
   const register = (email, password) => perform(AuthService.register, email, password);
+  const loginWithGoogle = async (idToken) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const sessionData = await AuthService.loginWithGoogle(idToken);
+      setSession({ user: sessionData.user, csrfToken: sessionData.csrfToken });
+      return sessionData;
+    } catch (err) {
+      setSession(null);
+      setError(err.message || 'Google sign-in failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const requestPasswordReset = async (email) => {
     setIsLoading(true);
@@ -114,6 +129,7 @@ export function useAuth() {
     error,
     isLoading,
     login,
+    loginWithGoogle,
     register,
     requestPasswordReset,
     confirmPasswordReset,

@@ -72,6 +72,12 @@ const register = async (email, password) => {
   return session;
 };
 
+const loginWithGoogle = async (idToken) => {
+  const session = await request('/api/auth/google', { idToken });
+  writeSession({ user: session.user, csrfToken: session.csrfToken });
+  return session;
+};
+
 const refresh = async () => {
   const session = await request('/api/auth/refresh', {});
   writeSession({ user: session.user, csrfToken: session.csrfToken });
@@ -129,6 +135,7 @@ const resendVerification = async (email) => {
 export default {
   requestWithAutoRefresh,
   login,
+  loginWithGoogle,
   register,
   refresh,
   logout,

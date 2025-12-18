@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import { 
@@ -66,6 +66,10 @@ function AuthScreen({ auth }) {
   const [resetMessage, setResetMessage] = useState('');
   const [localError, setLocalError] = useState('');
   const [showResend, setShowResend] = useState(false);
+  const googleButtonRef = useRef(null);
+  const [googleReady, setGoogleReady] = useState(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const showGoogleButton = !!googleClientId && (mode === 'login' || mode === 'register');
 
   // If a token is present in the URL (e.g., /reset?token=...), jump straight to confirm mode.
   useEffect(() => {
@@ -86,6 +90,53 @@ function AuthScreen({ auth }) {
         });
     }
   }, []);
+
+  useEffect(() => {
+    if (!googleClientId) return;
+    if (window.google?.accounts?.id) {
+      setGoogleReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleReady(true);
+    script.onerror = () => console.error('Failed to load Google Identity Services');
+    document.body.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, [googleClientId]);
+
+  useEffect(() => {
+    if (!googleReady) return;
+    if (!showGoogleButton) return;
+    if (!googleButtonRef.current) return;
+    const google = window.google;
+    if (!google?.accounts?.id) return;
+
+    google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: async (response) => {
+        setLocalError('');
+        setResetMessage('');
+        try {
+          await auth.loginWithGoogle(response.credential);
+        } catch (err) {
+          setLocalError(err.message || 'Google sign-in failed');
+        }
+      }
+    });
+
+    googleButtonRef.current.innerHTML = '';
+    google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      width: 360,
+      text: 'continue_with'
+    });
+  }, [googleReady, showGoogleButton, googleClientId, auth]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -291,6 +342,19 @@ function AuthScreen({ auth }) {
                     ? 'Create Account'
                     : 'Send Reset Email'}
             </button>
+
+            {showGoogleButton && (
+              <div className="pt-2">
+                <div className="flex items-center gap-3 my-2">
+                  <div className="h-px bg-white/20 flex-1" />
+                  <span className="text-xs text-purple-200">or</span>
+                  <div className="h-px bg-white/20 flex-1" />
+                </div>
+                <div className="flex justify-center">
+                  <div ref={googleButtonRef} />
+                </div>
+              </div>
+            )}
           </form>
         )}
 

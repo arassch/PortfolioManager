@@ -12,6 +12,7 @@
 /server/.env.local
 /server/.env.*.local
 /server/.env_railway
+/client/.env
 /client/.env_vercel
 
 # editor / OS

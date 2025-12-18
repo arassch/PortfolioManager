@@ -7,10 +7,13 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import Stripe from 'stripe';
+import { OAuth2Client } from 'google-auth-library';
 
 const { Pool } = pkg;
 dotenv.config();
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+const googleClient = googleClientId ? new OAuth2Client(googleClientId) : null;
 const freeEmailList = (process.env.STRIPE_FREE_USER_EMAILS || '')
   .split(',')
   .map(e => e.trim().toLowerCase())
@@ -668,6 +671,108 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   }
 
   const { token: accessToken, jti } = signAccessToken(user);
+  const refreshToken = makeRefreshToken();
+  const csrfToken = makeCsrfToken();
+  const familyId = makeJti();
+  await saveRefreshToken(refreshToken, user.id, familyId);
+  setCookies(res, { accessToken, refreshToken, csrfToken });
+  res.json({ user: { id: user.id, email: user.email }, csrfToken });
+}));
+
+app.post('/api/auth/google', asyncHandler(async (req, res) => {
+  const { idToken } = req.body || {};
+  if (!idToken) {
+    return res.status(400).json({ error: 'Google ID token is required' });
+  }
+  if (!googleClient) {
+    return res.status(500).json({ error: 'Google Sign-In is not configured (missing GOOGLE_CLIENT_ID on the server)' });
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: googleClientId
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    console.error('Google token verification failed', err.message);
+    return res.status(401).json({ error: 'Invalid Google token' });
+  }
+
+  const email = payload?.email?.toLowerCase();
+  const googleSub = payload?.sub;
+  const emailVerified = payload?.email_verified;
+  if (!email || !googleSub) {
+    return res.status(400).json({ error: 'Google token missing email information' });
+  }
+  if (!emailVerified) {
+    return res.status(403).json({ error: 'Google email is not verified' });
+  }
+
+  const isWhitelisted = freeEmailList.includes(email);
+  const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const initialStatus = isWhitelisted ? 'active' : 'trialing';
+
+  // Find user by google_sub (preferred) or email
+  let userRes = await pool.query(
+    'SELECT * FROM users WHERE google_sub = $1 OR email = $2',
+    [googleSub, email]
+  );
+  let user = userRes.rows[0];
+
+  if (!user) {
+    const created = await pool.query(
+      `INSERT INTO users (
+        email,
+        password_hash,
+        verified,
+        verified_at,
+        google_sub,
+        is_whitelisted,
+        subscription_status,
+        trial_ends_at
+      )
+       VALUES ($1, $2, TRUE, NOW(), $3, $4, $5, $6)
+       RETURNING *`,
+      [email, null, googleSub, isWhitelisted, initialStatus, isWhitelisted ? null : trialEnds]
+    );
+    user = created.rows[0];
+  } else {
+    // Link google_sub + mark verified; keep existing subscription fields unless missing
+    const needsLink = user.google_sub !== googleSub;
+    const shouldVerify = !user.verified;
+    const shouldWhitelist = isWhitelisted && !user.is_whitelisted;
+    if (needsLink || shouldVerify || shouldWhitelist) {
+      const updated = await pool.query(
+        `UPDATE users
+         SET google_sub = COALESCE(google_sub, $2),
+             verified = TRUE,
+             verified_at = COALESCE(verified_at, NOW()),
+             is_whitelisted = CASE WHEN $3 THEN TRUE ELSE is_whitelisted END
+         WHERE id = $1
+         RETURNING *`,
+        [user.id, googleSub, shouldWhitelist]
+      );
+      user = updated.rows[0] || user;
+    }
+  }
+
+  // Ensure we have trial provisioned for non-whitelisted users if missing
+  user = await provisionTrialIfNeeded(user);
+
+  // Always refresh Stripe subscription on Google login if available
+  if (stripe && user.stripe_subscription_id) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+      const updated = await updateUserSubscriptionFromStripe(sub);
+      if (updated) user = updated;
+    } catch (err) {
+      console.error('Failed to refresh subscription on Google login', err.message);
+    }
+  }
+
+  const { token: accessToken } = signAccessToken(user);
   const refreshToken = makeRefreshToken();
   const csrfToken = makeCsrfToken();
   const familyId = makeJti();
