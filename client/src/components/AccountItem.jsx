@@ -82,11 +82,25 @@ export function AccountItem({
             <span className="px-2 py-1 rounded text-xs bg-purple-500/30 text-purple-200">
               {account.currency}
             </span>
-            {account.taxable && (
+            {isEditing ? (
+              <label className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-white/5 border border-white/10 text-purple-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!account.taxable}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    onSaveEdit(account.id, 'taxable', checked);
+                    onSaveEdit(account.id, 'taxTreatment', checked ? 'taxable' : 'roth');
+                  }}
+                  className="w-3 h-3"
+                />
+                Taxable
+              </label>
+            ) : account.taxable ? (
               <span className="px-2 py-1 rounded text-xs bg-orange-500/30 text-orange-200">
                 Taxable
               </span>
-            )}
+            ) : null}
           </div>
           <div className={`grid gap-4 text-sm ${showReturnRate ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>

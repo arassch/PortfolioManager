@@ -11,8 +11,8 @@ export class Account {
     this.returnRate = parseFloat(data.returnRate ?? 0) || 0;
     this.taxable = data.taxable || false;
     // Tax treatment/basis for after-tax views
-    this.taxTreatment = data.taxTreatment || (this.taxable ? 'taxable' : 'deferred'); // 'taxable' | 'deferred' | 'roth'
-    this.costBasis = parseFloat(data.costBasis) || this.balance; // starting principal/basis
+    this.taxTreatment = data.taxTreatment ?? (this.taxable ? 'taxable' : 'roth'); // 'taxable' | 'deferred' | 'roth'
+    this.costBasis = Number.isFinite(parseFloat(data.costBasis)) ? parseFloat(data.costBasis) : this.balance; // starting principal/basis
   }
 
   isValid() {

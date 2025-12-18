@@ -86,6 +86,7 @@ class ProjectionController {
 
       let totalProjected = 0;
       let totalReturnForYear = 0;
+      let totalProjectedAfterTaxRounded = 0;
       let totalActual = 0;
 
       // Store start of year balances
@@ -179,14 +180,17 @@ class ProjectionController {
         if (!isSelected) return;
 
         const value = accountBalances[account.id];
+        const effectiveTreatment = account.taxable ? 'taxable' : 'roth';
         const afterTax = this.calculateAfterTaxValue(
           value,
           accountBasis[account.id],
-          account.taxTreatment || (account.taxable ? 'taxable' : 'deferred'),
+          effectiveTreatment,
           taxRate
         );
+        const afterTaxRounded = Math.round(afterTax);
 
         totalProjected += value;
+        totalProjectedAfterTaxRounded += afterTaxRounded;
 
         if (yearIndex > 0) {
           const annualReturn = value - yearStartBalances[account.id];
@@ -201,7 +205,9 @@ class ProjectionController {
 
         if (showIndividualAccounts) {
           yearData[`account_${account.id}`] = Math.round(value);
-          yearData[`account_${account.id}_net`] = Math.round(afterTax);
+          if (yearIndex > 0 && account.taxable) {
+            yearData[`account_${account.id}_net`] = afterTaxRounded;
+          }
           yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
         }
 
@@ -218,6 +224,8 @@ class ProjectionController {
       });
 
       yearData.projected = Math.round(totalProjected);
+      const totalTaxRounded = Math.max(yearData.projected - totalProjectedAfterTaxRounded, 0);
+      yearData.projectedNet = (yearIndex === 0 || totalTaxRounded === 0) ? null : totalProjectedAfterTaxRounded;
       yearData.totalReturn = Math.round(totalReturnForYear);
       yearData.actual = totalActual > 0 ? Math.round(totalActual) : null;
 

@@ -1513,7 +1513,9 @@ function PortfolioManager({ auth }) {
                     <div>
                       <h3 className="text-xl font-bold text-white mb-1">Return Rates</h3>
                       <p className="text-purple-200 text-sm">
-                        Adjust account return rates for this projection only. Inflation is subtracted from these rates.
+                        Adjust account nominal return rates for this projection only. Inflation is subtracted from these rates. 
+                        <br />
+                        Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.
                       </p>
                     </div>
                   </div>

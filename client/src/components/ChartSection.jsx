@@ -68,8 +68,7 @@ export function ChartSection({
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
-        const isTaxable = !!acc.taxable;
-        const currNet = isTaxable && current ? current[`account_${acc.id}_net`] : null;
+        const currNet = current ? current[`account_${acc.id}_net`] : null;
         if (prevVal == null || currVal == null) return null;
 
         const monthlyReal = Math.pow(1 + realRatePct / 100, 1 / 12) - 1;
@@ -82,7 +81,7 @@ export function ChartSection({
           `= ${formatCurrency(currVal)}`
         ].filter(Boolean);
         const calc = calcParts.join(' ');
-        const estTax = isTaxable && currNet != null ? Math.max(currVal - currNet, 0) : null;
+        const estTax = currNet != null ? Math.max(currVal - currNet, 0) : null;
 
         return {
           name: acc.name,
@@ -103,18 +102,26 @@ export function ChartSection({
     const prevValue = prev?.projected ?? 0;
     const delta = current.projected - prevValue;
     const pct = prevValue ? `${((delta / prevValue) * 100).toFixed(1)}%` : 'n/a';
+    const net = current.projectedNet != null ? current.projectedNet : null;
+    const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Projected: {formatCurrency(current.projected)}</div>
-          <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div>
           {prev && (
             <div className="text-xs text-purple-200">
               Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
             </div>
           )}
+          {net != null && (
+            <div className="text-emerald-200">
+              After-tax est: {formatCurrency(net)}{estTax != null ? ` (Est tax: ${formatCurrency(estTax)})` : ''}
+            </div>
+          )}
+          {/* <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div> */}
+          
           {current.actual != null ? (
             <div className="text-green-300">Actual: {formatCurrency(current.actual)}</div>
           ) : null}
@@ -123,7 +130,7 @@ export function ChartSection({
               {buildAccountBreakdown(current, prev).map((item) => (
                 <div key={item.name}>
                   <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
-                  {item.net != null && (
+                  {item.net != null && item.estTax != null && item.estTax > 0 && (
                     <div className="text-[11px] text-emerald-200">
                       After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
                     </div>
@@ -146,13 +153,20 @@ export function ChartSection({
     const currProjected = current.projected ?? 0;
     const delta = currProjected - prevProjected;
     const pct = prevProjected ? `${((delta / prevProjected) * 100).toFixed(1)}%` : 'n/a';
+    const net = current.projectedNet != null ? current.projectedNet : null;
+    const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
           <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
-          <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div>
+          {/* {net != null && (
+            <div className="text-emerald-200">
+              After-tax est: {formatCurrency(net)}{estTax != null ? ` (Est tax: ${formatCurrency(estTax)})` : ''}
+            </div>
+          )} */}
+          {/* <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div> */}
           {prev && (
             <div className="text-xs text-purple-200">
               From {formatCurrency(prevProjected)} → {formatCurrency(currProjected)} | Δ {formatCurrency(delta)} ({pct})
@@ -163,7 +177,7 @@ export function ChartSection({
               {buildAccountBreakdown(current, prev).map((item) => (
                 <div key={item.name}>
                   <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
-                  {item.net != null && (
+                  {item.net != null && item.estTax != null && item.estTax > 0 && (
                     <div className="text-[11px] text-emerald-200">
                       After-tax est: {formatCurrency(item.net)}
                     </div>
