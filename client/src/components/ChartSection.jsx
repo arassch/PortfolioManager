@@ -77,10 +77,10 @@ export function ChartSection({
     : null;
   const fiYearLabel = fiReachPoint?.label;
 
-  const buildAccountBreakdown = (current, prev) => {
+  const buildAccountBreakdown = (current, prev, useReturns = false) => {
     return accounts
       .filter((acc) => selectedAccounts[acc.id])
-      .map((acc, idx) => {
+      .map((acc) => {
         const nominalRate =
           (typeof acc.getReturnRate === 'function' ? acc.getReturnRate() : null) ??
           acc.returnRate ??
@@ -88,23 +88,28 @@ export function ChartSection({
         const inflationPct = inflationRate ?? 0;
         const realRatePct = ((1 + nominalRate / 100) / (1 + inflationPct / 100) - 1) * 100;
 
-        const prevVal = prev ? prev[`account_${acc.id}`] : null;
-        const currVal = current ? current[`account_${acc.id}`] : null;
+        const prevVal = prev ? prev[useReturns ? `account_${acc.id}_return` : `account_${acc.id}`] : null;
+        const currVal = current ? current[useReturns ? `account_${acc.id}_return` : `account_${acc.id}`] : null;
         const actualVal = current ? current[`account_${acc.id}_actual`] : null;
         const currNet = current ? current[`account_${acc.id}_net`] : null;
-        if (prevVal == null || currVal == null) return null;
+        if (currVal == null) return null;
 
-        const monthlyReal = Math.pow(1 + realRatePct / 100, 1 / 12) - 1;
-        const gross = prevVal * Math.pow(1 + monthlyReal, 12);
-        const transferNet = current[`account_${acc.id}_transfers`] || 0;
-        const calcParts = [
-          `prev ${formatCurrency(prevVal)}`,
-          `x real ${realRatePct.toFixed(2)}%`,
-          transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
-          `= ${formatCurrency(currVal)}`
-        ].filter(Boolean);
-        const calc = calcParts.join(' ');
-        const estTax = currNet != null ? Math.max(currVal - currNet, 0) : null;
+        let calc = '';
+        let estTax = null;
+        if (useReturns) {
+          calc = `earnings ${formatCurrency(currVal)}`;
+        } else {
+          const monthlyReal = Math.pow(1 + realRatePct / 100, 1 / 12) - 1;
+          const transferNet = current[`account_${acc.id}_transfers`] || 0;
+          const calcParts = [
+            prevVal != null ? `prev ${formatCurrency(prevVal)}` : null,
+            `x real ${realRatePct.toFixed(2)}%`,
+            transferNet ? `${transferNet > 0 ? '+ transfers ' : '- transfers '}${formatCurrency(Math.abs(transferNet))}` : null,
+            `= ${formatCurrency(currVal)}`
+          ].filter(Boolean);
+          calc = calcParts.join(' ');
+          estTax = currNet != null ? Math.max(currVal - currNet, 0) : null;
+        }
 
         const color = getAccountColor(acc.id);
         return {
@@ -212,7 +217,7 @@ export function ChartSection({
           )}
           {showIndividualAccounts && (
             <div className="pt-1 text-xs text-slate-200 space-y-1">
-              {buildAccountBreakdown(current, prev).map((item) => (
+              {buildAccountBreakdown(current, prev, true).map((item) => (
                 <div key={item.name} className="flex items-start gap-2">
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full mt-1"
