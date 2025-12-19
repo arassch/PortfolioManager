@@ -1,10 +1,11 @@
 export const CURRENCIES = ['USD', 'GBP', 'EUR', 'JPY', 'CAD', 'AUD', 'CHF'];
 
+// Fallback rates (approx) used if live lookup fails.
 export const EXCHANGE_RATES = {
   USD: 1,
   GBP: 0.79,
   EUR: 0.92,
-  JPY: 149.50,
+  JPY: 149.5,
   CAD: 1.36,
   AUD: 1.52,
   CHF: 0.88

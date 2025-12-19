@@ -1632,148 +1632,18 @@ function PortfolioManager({ auth }) {
           </div>
         )}
 
-        {isProjectionSection && (
+        {isProjectionSection && activeProjection && (
           <>
-            {activeProjection && (
-              <div className="grid lg:grid-cols-5 gap-4 mb-8">
-                <div data-tour="return-rates" className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 lg:col-span-2">
-                  <div className="flex flex-col gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-purple-100">Inflation %</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={activeProjection?.inflationRate ?? 0}
-                        onChange={(e) => handleSaveInflationRate(parseFloat(e.target.value) || 0)}
-                        className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-1">Return Rates</h3>
-                      <p className="text-purple-200 text-sm">
-                        Adjust account nominal return rates for this projection only. Inflation is subtracted from these rates. 
-                        <br />
-                        Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid gap-3">
-                    {projectionView.accounts.map((account) => {
-                      const rate = projectionRateDrafts[account.id] ?? '';
-                      const label = account.type === 'cash' ? 'Interest %' : 'Return Rate %';
-                      const field = 'returnRate';
-                      const persistRate = () => {
-                        const num = parseFloat(rate);
-                        const finalVal = Number.isFinite(num) ? num : 0;
-                        handleSaveAccountEdit(account.id, field, finalVal);
-                      };
-                      return (
-                        <div key={account.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-white font-semibold">{account.name}</div>
-                              <div className="text-xs text-purple-200">{label}</div>
-                            </div>
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={rate}
-                              onChange={(e) =>
-                                setProjectionRateDrafts(prev => ({
-                                  ...prev,
-                                  [account.id]: e.target.value
-                                }))
-                              }
-                              onBlur={persistRate}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  persistRate();
-                                }
-                              }}
-                              className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div data-tour="transfer-rules" className="bg-white/10 backdrop-blur-lg rounded-xl p-5 border border-white/20 lg:col-span-3">
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-white">Transfer Rules</h3>
-                      <p className="text-purple-200 text-sm">
-                        Scenario-specific rules for {activeProjection?.name || 'this projection'}.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowAddRule(!showAddRule)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Rule
-                    </button>
-                  </div>
-
-                  {(showAddRule || editingRuleId) && (
-                    <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
-                      <TransferRuleForm
-                        rule={editingRuleId ? (activeProjection?.transferRules || []).find(r => r.id === editingRuleId) : null}
-                        onSubmit={editingRuleId ? handleSaveRuleEdit : handleAddRule}
-                        onCancel={() => {
-                          setShowAddRule(false);
-                          setEditingRuleId(null);
-                        }}
-                        accounts={portfolio.accounts}
-                        baseCurrency={portfolio.baseCurrency}
-                        isEdit={!!editingRuleId}
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                  {(activeProjection?.transferRules || []).map(rule => {
-                    const fromAccount = rule.fromAccountId ? getAccountById(rule.fromAccountId) : null;
-                    
-                    return (
-                      <div key={rule.id}>
-                        <TransferRuleItem
-                          rule={rule}
-                          fromAccount={fromAccount}
-                          onEdit={() => {
-                            setEditingRuleId(rule.id);
-                            setShowAddRule(true);
-                            }}
-                            onDelete={() => handleDeleteRule(rule.id)}
-                            accounts={portfolio.accounts}
-                            baseCurrency={portfolio.baseCurrency}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {(activeProjection?.transferRules || []).length === 0 && (
-                    <div className="text-center py-8 text-purple-200">
-                      <p>No transfer rules yet. Add rules to automatically move funds between accounts.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeProjection && (
-              <ChartSection
-                projectionName={activeProjection?.name}
-                accountFilterHint="Account filters and data points are shared across all projections."
-                projectionData={projectionData}
-                accounts={projectionView.accounts}
-                selectedAccounts={selectedAccounts}
-                showIndividualAccounts={showIndividualAccounts}
-                activeTab={activeTab}
-                baseCurrency={portfolio.baseCurrency}
-                inflationRate={projectionView.inflationRate}
+            <ChartSection
+              projectionName={activeProjection?.name}
+              accountFilterHint="Account filters and data points are shared across all projections."
+              projectionData={projectionData}
+              accounts={projectionView.accounts}
+              selectedAccounts={selectedAccounts}
+              showIndividualAccounts={showIndividualAccounts}
+              activeTab={activeTab}
+              baseCurrency={portfolio.baseCurrency}
+              inflationRate={projectionView.inflationRate}
               projectionYears={portfolio.projectionYears}
               onUpdateProjectionYears={handleInlineProjectionYears}
               onTabChange={setActiveTab}
@@ -1784,7 +1654,133 @@ function PortfolioManager({ auth }) {
               taxRate={projectionView.taxRate}
               fiTarget={fiTarget}
             />
-            )}
+
+            <div className="grid lg:grid-cols-5 gap-4 mb-8 mt-6">
+              <div data-tour="return-rates" className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 lg:col-span-2">
+                <div className="flex flex-col gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-purple-100">Inflation %</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={activeProjection?.inflationRate ?? 0}
+                      onChange={(e) => handleSaveInflationRate(parseFloat(e.target.value) || 0)}
+                      className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Return Rates</h3>
+                    <p className="text-purple-200 text-sm">
+                      Adjust account nominal return rates for this projection only. Inflation is subtracted from these rates. 
+                      <br />
+                      Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  {projectionView.accounts.map((account) => {
+                    const rate = projectionRateDrafts[account.id] ?? '';
+                    const label = account.type === 'cash' ? 'Interest %' : 'Return Rate %';
+                    const field = 'returnRate';
+                    const persistRate = () => {
+                      const num = parseFloat(rate);
+                      const finalVal = Number.isFinite(num) ? num : 0;
+                      handleSaveAccountEdit(account.id, field, finalVal);
+                    };
+                    return (
+                      <div key={account.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-white font-semibold">{account.name}</div>
+                            <div className="text-xs text-purple-200">{label}</div>
+                          </div>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={rate}
+                            onChange={(e) =>
+                              setProjectionRateDrafts(prev => ({
+                                ...prev,
+                                [account.id]: e.target.value
+                              }))
+                            }
+                            onBlur={persistRate}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                persistRate();
+                              }
+                            }}
+                            className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div data-tour="transfer-rules" className="bg-white/10 backdrop-blur-lg rounded-xl p-5 border border-white/20 lg:col-span-3">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Transfer Rules</h3>
+                    <p className="text-purple-200 text-sm">
+                      Scenario-specific rules for {activeProjection?.name || 'this projection'}.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddRule(!showAddRule)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Rule
+                  </button>
+                </div>
+
+                {(showAddRule || editingRuleId) && (
+                  <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
+                    <TransferRuleForm
+                      rule={editingRuleId ? (activeProjection?.transferRules || []).find(r => r.id === editingRuleId) : null}
+                      onSubmit={editingRuleId ? handleSaveRuleEdit : handleAddRule}
+                      onCancel={() => {
+                        setShowAddRule(false);
+                        setEditingRuleId(null);
+                      }}
+                      accounts={portfolio.accounts}
+                      baseCurrency={portfolio.baseCurrency}
+                      isEdit={!!editingRuleId}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                {(activeProjection?.transferRules || []).map(rule => {
+                  const fromAccount = rule.fromAccountId ? getAccountById(rule.fromAccountId) : null;
+                  
+                  return (
+                    <div key={rule.id}>
+                      <TransferRuleItem
+                        rule={rule}
+                        fromAccount={fromAccount}
+                        onEdit={() => {
+                          setEditingRuleId(rule.id);
+                          setShowAddRule(true);
+                          }}
+                          onDelete={() => handleDeleteRule(rule.id)}
+                          accounts={portfolio.accounts}
+                          baseCurrency={portfolio.baseCurrency}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(activeProjection?.transferRules || []).length === 0 && (
+                  <div className="text-center py-8 text-purple-200">
+                    <p>No transfer rules yet. Add rules to automatically move funds between accounts.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
 

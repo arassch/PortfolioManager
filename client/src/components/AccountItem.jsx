@@ -29,7 +29,7 @@ export function AccountItem({
 
   const handleAddActual = () => {
     const yearInt = parseInt(year, 10);
-    const actualValue = parseFloat(value);
+    const actualValue = parseFloat(String(value).replace(/,/g, ''));
     if (!isNaN(yearInt) && !isNaN(actualValue)) {
       onAddActualValue(account.id, yearInt, actualValue);
       setYear('');
@@ -51,8 +51,20 @@ export function AccountItem({
   const saveProjection = onSaveProjectionValue || onSaveEdit;
   const canEditRate = isEditing && enableProjectionFields;
 
+  const formatInputNumber = (val) => {
+    if (val === '' || val === null || val === undefined) return '';
+    const num = Number(String(val).replace(/,/g, ''));
+    if (!Number.isFinite(num)) return val;
+    return num.toLocaleString();
+  };
+
+  const parseNumber = (val) => {
+    if (val === '' || val === null || val === undefined) return NaN;
+    return Number(String(val).replace(/,/g, ''));
+  };
+
   const persistBalance = async (finish = false) => {
-    const num = parseFloat(balanceDraft);
+    const num = parseNumber(balanceDraft);
     const finalVal = Number.isFinite(num) ? num : 0;
     await onSaveEdit(account.id, 'balance', finalVal);
     if (finish) {
@@ -108,8 +120,9 @@ export function AccountItem({
               <span className="text-purple-200">Balance: </span>
               {isEditing ? (
                 <input
-                  type="number"
-                  value={balanceDraft}
+                  type="text"
+                  inputMode="decimal"
+                  value={formatInputNumber(balanceDraft)}
                   onChange={(e) => setBalanceDraft(e.target.value)}
                   onBlur={() => persistBalance(true)}
                   onKeyDown={(e) => {
@@ -117,7 +130,7 @@ export function AccountItem({
                       persistBalance(true);
                     }
                   }}
-                  className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
+                  className="w-28 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
                 />
               ) : (
                 <span className="text-white font-semibold">
@@ -173,9 +186,10 @@ export function AccountItem({
                   className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
                 />
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="Actual Value"
-                  value={value}
+                  value={formatInputNumber(value)}
                   onChange={(e) => setValue(e.target.value)}
                   className="flex-1 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
                 />
