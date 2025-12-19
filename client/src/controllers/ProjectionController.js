@@ -3,6 +3,8 @@ import CurrencyService from '../services/CurrencyService';
 /**
  * ProjectionController - Manages projection calculations
  */
+const TIME_TRAVEL_YEARS = Math.max(0, Math.floor(Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0)));
+
 class ProjectionController {
   calculateProjections(portfolio, selectedAccounts, showIndividualAccounts) {
     const data = [];
@@ -12,6 +14,7 @@ class ProjectionController {
     }
 
     const currentYear = new Date().getFullYear();
+    const offsetYears = TIME_TRAVEL_YEARS;
     const taxRate = portfolio.taxRate || 0;
     const transferRules = portfolio.transferRules || [];
     const inflation = portfolio.inflationRate ?? 0;
@@ -74,7 +77,9 @@ class ProjectionController {
       accountBasis[account.id] = basisBase;
     });
 
-    for (let yearIndex = 0; yearIndex <= portfolio.projectionYears; yearIndex++) {
+    const totalYears = portfolio.projectionYears + offsetYears;
+
+    for (let yearIndex = 0; yearIndex <= totalYears; yearIndex++) {
       const year = currentYear + yearIndex;
       const yearData = {
         year,
@@ -230,6 +235,11 @@ class ProjectionController {
       yearData.actual = totalActual > 0 ? Math.round(totalActual) : null;
 
       data.push(yearData);
+    }
+
+    // If time-traveling into the future, drop the initial offset years so the chart starts at the simulated future
+    if (offsetYears > 0) {
+      return data.slice(offsetYears);
     }
 
     return data;
