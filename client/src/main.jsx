@@ -430,6 +430,7 @@ function PortfolioManager({ auth }) {
   const lastTourAutoAdvanceRef = useRef(0);
   const [showProjectionMenu, setShowProjectionMenu] = useState(false);
   const navRef = useRef(null);
+  const TIME_TRAVEL_YEARS = Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0);
   const activeProjection = portfolio.getActiveProjection();
   const activeProjectionId = activeProjection?.id;
   const projectionView = useMemo(
@@ -722,21 +723,52 @@ function PortfolioManager({ auth }) {
     projectionSeries.forEach(series => {
       series.data.forEach(point => years.add(point.year));
     });
+    const accountIds = (portfolio.accounts || []).map(acc => acc.id);
+    const refSeries = projectionSeries[0];
+    const earliestYear = refSeries?.data?.[0]?.year;
+
     return Array.from(years)
       .sort((a, b) => a - b)
       .map(year => {
         const row = { year, label: year.toString(), actual: null };
+
+        // Populate per-projection projected values
         projectionSeries.forEach(series => {
           const found = series.data.find(p => p.year === year);
           if (!found) return;
           row[`projection_${series.id}`] = found.projected;
-          if (found.actual != null && found.actual !== undefined) {
-            row.actual = found.actual;
-          }
         });
+
+        // Actuals: only initial account value (earliest year) and explicit actual datapoints; no projection fallback
+        if (refSeries) {
+          const refPoint = refSeries.data.find(p => p.year === year);
+          if (refPoint) {
+            let sum = 0;
+            let hasAny = false;
+            accountIds.forEach((id) => {
+              const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
+              if (selected === false) return;
+              const acctActual = refPoint[`account_${id}_actual`];
+              if (acctActual != null) {
+                sum += acctActual;
+                hasAny = true;
+              } else if (year === earliestYear) {
+                const acctInitial = refPoint[`account_${id}`];
+                if (acctInitial != null) {
+                  sum += acctInitial;
+                  hasAny = true;
+                }
+              }
+            });
+            if (hasAny) {
+              row.actual = Math.round(sum);
+            }
+          }
+        }
+
         return row;
       });
-  }, [projectionSeries]);
+  }, [projectionSeries, portfolio.accounts, selectedAccounts]);
 
   if (subscriptionRequired) {
     return (
@@ -1236,6 +1268,11 @@ function PortfolioManager({ auth }) {
                 <span className="text-sm bg-white/10 px-3 py-1 rounded-full border border-white/20">
                   Signed in as {auth.user.email}
                 </span>
+                {TIME_TRAVEL_YEARS !== 0 && (
+                  <span className="text-xs px-3 py-1 rounded-full bg-orange-500/30 text-white border border-orange-300/60">
+                    Time travel: {TIME_TRAVEL_YEARS > 0 ? `+${TIME_TRAVEL_YEARS}y` : `${TIME_TRAVEL_YEARS}y`}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => startTour(0)}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -35,10 +35,32 @@ export function ProjectionComparisonSection({
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const formatCurrency = (value) => CurrencyService.formatCurrency(value || 0, baseCurrency);
   const hasActualData = data.some(row => row.actual != null);
+  const TIME_TRAVEL_YEARS = Math.max(0, Math.floor(Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0)));
+  const nowYear = new Date().getFullYear() + TIME_TRAVEL_YEARS;
+  const formatYAxisTick = (val) => {
+    const symbol = CurrencyService.getSymbol(baseCurrency);
+    const abs = Math.abs(val);
+    if (abs >= 1_000_000) return `${symbol}${(val / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${symbol}${(val / 1_000).toFixed(1)}k`;
+    return `${symbol}${val.toFixed(0)}`;
+  };
+  const nowLabel = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    const years = data.map((row) => row.year);
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    if (nowYear <= minYear) return data[0]?.label ?? null;
+    if (nowYear >= maxYear) return data[data.length - 1]?.label ?? null;
+    const exact = data.find((row) => row.year === nowYear);
+    if (exact) return exact.label;
+    const next = data.find((row) => row.year > nowYear);
+    return next?.label ?? data[data.length - 1]?.label ?? null;
+  }, [data, nowYear]);
 
   useEffect(() => {
-    setHoverRow(data[data.length - 1] || null);
-  }, [data]);
+    const defaultRow = data.find((row) => row.year === nowYear) || data[data.length - 1] || null;
+    setHoverRow(defaultRow);
+  }, [data, nowYear]);
 
   const fiMarkers = fiTarget
     ? projections
@@ -242,12 +264,19 @@ export function ProjectionComparisonSection({
               <XAxis dataKey="label" stroke="#ffffff80" />
               <YAxis
                 stroke="#ffffff80"
-                tickFormatter={(val) =>
-                  `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
-                }
+                tickFormatter={formatYAxisTick}
+            />
+            <Tooltip content={renderTooltip} />
+            <Legend />
+            {nowLabel && (
+              <ReferenceLine
+                x={nowLabel}
+                stroke="#fbbf24"
+                strokeWidth={2}
+                strokeDasharray="6 6"
+                label={{ position: 'top', value: 'Now', fill: '#fbbf24', fontSize: 12 }}
               />
-              <Tooltip content={renderTooltip} />
-              <Legend />
+            )}
               {fiTarget > 0 && (
                 <>
                   <ReferenceLine

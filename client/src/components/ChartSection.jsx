@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -31,15 +31,33 @@ export function ChartSection({
 }) {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const formatCurrency = (value) => CurrencyService.formatCurrency(value, baseCurrency);
-  const currentYear = new Date().getFullYear();
+  const formatYAxisTick = (val) => {
+    const symbol = CurrencyService.getSymbol(baseCurrency);
+    const abs = Math.abs(val);
+    if (abs >= 1_000_000) return `${symbol}${(val / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${symbol}${(val / 1_000).toFixed(1)}k`;
+    return `${symbol}${val.toFixed(0)}`;
+  };
+  const TIME_TRAVEL_YEARS = Math.max(0, Math.floor(Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0)));
+  const nowYear = new Date().getFullYear() + TIME_TRAVEL_YEARS;
+  const nowLabel = useMemo(() => {
+    if (!projectionData || projectionData.length === 0) return null;
+    const minYear = Math.min(...projectionData.map((p) => p.year));
+    const maxYear = Math.max(...projectionData.map((p) => p.year));
+    if (nowYear <= minYear) return projectionData[0]?.label ?? null;
+    if (nowYear >= maxYear) return projectionData[projectionData.length - 1]?.label ?? null;
+    const exact = projectionData.find((p) => p.year === nowYear);
+    if (exact) return exact.label;
+    const next = projectionData.find((p) => p.year > nowYear);
+    return next?.label ?? projectionData[projectionData.length - 1]?.label ?? null;
+  }, [projectionData, nowYear]);
+  const currentYear = nowYear;
 
   const getDefaultHover = () => {
     if (!projectionData || projectionData.length === 0) return null;
     const current = projectionData.find(p => p.year === currentYear);
     return current || projectionData[0];
   };
-  const hasActualData = projectionData.some(p => p.actual != null);
-
   const [hoverData, setHoverData] = useState(getDefaultHover());
 
   useEffect(() => {
@@ -68,6 +86,7 @@ export function ChartSection({
 
         const prevVal = prev ? prev[`account_${acc.id}`] : null;
         const currVal = current ? current[`account_${acc.id}`] : null;
+        const actualVal = current ? current[`account_${acc.id}_actual`] : null;
         const currNet = current ? current[`account_${acc.id}_net`] : null;
         if (prevVal == null || currVal == null) return null;
 
@@ -90,7 +109,8 @@ export function ChartSection({
           net: currNet,
           estTax,
           calc,
-          color
+          color,
+          actualVal
         };
       })
       .filter(Boolean);
@@ -124,9 +144,6 @@ export function ChartSection({
           )}
           {/* <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div> */}
           
-          {current.actual != null ? (
-            <div className="text-green-300">Actual: {formatCurrency(current.actual)}</div>
-          ) : null}
           {showIndividualAccounts && (
             <div className="pt-1 text-xs text-slate-200 space-y-1">
               {buildAccountBreakdown(current, prev).map((item) => (
@@ -140,6 +157,15 @@ export function ChartSection({
                     {item.net != null && item.estTax != null && item.estTax > 0 && (
                       <div className="text-[11px] text-emerald-200">
                         After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
+                      </div>
+                    )}
+                    {item.actualVal != null && (
+                      <div className="text-[11px] text-green-200 flex items-center gap-1">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full border"
+                          style={{ borderColor: item.color, backgroundColor: 'transparent' }}
+                        />
+                        <span>Actual {item.name}: {formatCurrency(item.actualVal)}</span>
                       </div>
                     )}
                   </div>
@@ -190,6 +216,15 @@ export function ChartSection({
                   />
                   <div>
                     <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                    {item.actualVal != null && (
+                      <div className="text-[11px] text-green-200 flex items-center gap-1">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full border"
+                          style={{ borderColor: item.color, backgroundColor: 'transparent' }}
+                        />
+                        <span>Actual {item.name}: {formatCurrency(item.actualVal)}</span>
+                      </div>
+                    )}
                     {item.net != null && item.estTax != null && item.estTax > 0 && (
                       <div className="text-[11px] text-emerald-200">
                         After-tax est: {formatCurrency(item.net)}
@@ -414,12 +449,19 @@ export function ChartSection({
               <XAxis dataKey="label" stroke="#ffffff80" />
               <YAxis
                 stroke="#ffffff80"
-                  tickFormatter={(val) =>
-                    `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
-                  }
-                />
+                tickFormatter={formatYAxisTick}
+              />
               <Tooltip content={renderGrowthTooltip} />
               <Legend />
+              {nowLabel && (
+                <ReferenceLine
+                  x={nowLabel}
+                  stroke="#fbbf24"
+                  strokeWidth={2}
+                  strokeDasharray="6 6"
+                  label={{ position: 'top', value: 'Now', fill: '#fbbf24', fontSize: 12 }}
+                />
+              )}
               {fiTarget > 0 && (
                 <>
                   <ReferenceLine
@@ -456,32 +498,38 @@ export function ChartSection({
                 dot={false}
                 animationDuration={1500}
               />
-              {hasActualData && (
-                <Line
-                  type="monotone"
-                  dataKey="actual"
-                  stroke="#34d399"
-                  strokeWidth={3}
-                  dot={{ fill: '#34d399', r: 4 }}
-                  animationDuration={1500}
-                  connectNulls
-                />
-              )}
                 {showIndividualAccounts &&
                   accounts
                     .filter((acc) => selectedAccounts[acc.id])
-                    .map((account, idx) => (
-                      <Line
-                        key={account.id}
-                        type="monotone"
-                        dataKey={`account_${account.id}`}
-                        name={account.name}
-                        stroke={getColorForIndex(idx, accounts.length)}
-                        strokeWidth={2}
-                        dot={false}
-                        animationDuration={1500}
-                      />
-                    ))}
+                    .map((account, idx) => {
+                      const color = getColorForIndex(idx, accounts.length);
+                      return (
+                        <React.Fragment key={account.id}>
+                          <Line
+                            type="monotone"
+                            dataKey={`account_${account.id}`}
+                            name={account.name}
+                            stroke={color}
+                            strokeWidth={2}
+                            dot={false}
+                            connectNulls
+                            animationDuration={1500}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey={`account_${account.id}_observed`}
+                            name=""
+                            legendType="none"
+                            stroke={color}
+                            strokeWidth={2}
+                            strokeDasharray="4 4"
+                            dot={{ r: 5, stroke: '#0f172a', strokeWidth: 1, fill: color }}
+                            connectNulls
+                            isAnimationActive={false}
+                          />
+                        </React.Fragment>
+                      );
+                    })}
               </LineChart>
             ) : (
               <BarChart
@@ -498,12 +546,19 @@ export function ChartSection({
                 <XAxis dataKey="label" stroke="#ffffff80" />
                 <YAxis
                   stroke="#ffffff80"
-                  tickFormatter={(val) =>
-                    `${CurrencyService.getSymbol(baseCurrency)}${(val / 1000).toFixed(0)}k`
-                  }
+                  tickFormatter={formatYAxisTick}
                 />
                 <Tooltip content={renderEarningsTooltip} />
                 <Legend />
+                {nowLabel && (
+                  <ReferenceLine
+                    x={nowLabel}
+                    stroke="#fbbf24"
+                    strokeWidth={2}
+                    strokeDasharray="6 6"
+                    label={{ position: 'top', value: 'Now', fill: '#fbbf24', fontSize: 12 }}
+                  />
+                )}
                 {showIndividualAccounts ? (
                   accounts
                     .filter((acc) => selectedAccounts[acc.id])

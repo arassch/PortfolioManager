@@ -51,9 +51,12 @@ class ProjectionController {
         totalReturn: 0,
           actual: actualTotalsByYear[y] ? Math.round(actualTotalsByYear[y]) : null
         };
-        if (showIndividualAccounts && actualByAccountYear[y]) {
+        if (actualByAccountYear[y]) {
           Object.entries(actualByAccountYear[y]).forEach(([accId, val]) => {
-            yearData[`account_${accId}`] = Math.round(val);
+            const rounded = Math.round(val);
+            yearData[`account_${accId}`] = rounded;
+            yearData[`account_${accId}_actual`] = rounded;
+            yearData[`account_${accId}_observed`] = rounded;
           });
         }
         data.push(yearData);
@@ -200,32 +203,38 @@ class ProjectionController {
         if (yearIndex > 0) {
           const annualReturn = value - yearStartBalances[account.id];
           totalReturnForYear += annualReturn;
-
-          if (showIndividualAccounts) {
-            yearData[`account_${account.id}_return`] = Math.round(annualReturn);
-          }
-        } else if (showIndividualAccounts) {
+          yearData[`account_${account.id}_return`] = Math.round(annualReturn);
+        } else {
           yearData[`account_${account.id}_return`] = 0;
         }
 
-        if (showIndividualAccounts) {
-          yearData[`account_${account.id}`] = Math.round(value);
-          if (yearIndex > 0 && account.taxable) {
-            yearData[`account_${account.id}_net`] = afterTaxRounded;
-          }
-          yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
+        const projectedRounded = Math.round(value);
+        let observedVal = null;
+        yearData[`account_${account.id}`] = projectedRounded;
+        if (yearIndex === 0) {
+          observedVal = projectedRounded; // initial balance counts as an observed point
         }
+        if (yearIndex > 0 && account.taxable) {
+          yearData[`account_${account.id}_net`] = afterTaxRounded;
+        }
+        yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
 
         const actualForYear =
           portfolio.actualValues[account.id]?.[year] ??
           portfolio.actualValues[account.id]?.[yearIndex]; // support legacy index-based data
         if (actualForYear !== undefined) {
-          totalActual += CurrencyService.convertToBase(
+          const actualBase = CurrencyService.convertToBase(
             actualForYear,
             account.currency,
             portfolio.baseCurrency
           );
+          totalActual += actualBase;
+          const roundedActual = Math.round(actualBase);
+          yearData[`account_${account.id}_actual`] = roundedActual;
+          observedVal = roundedActual; // actual datapoint
         }
+
+        yearData[`account_${account.id}_observed`] = observedVal;
       });
 
       yearData.projected = Math.round(totalProjected);
@@ -235,11 +244,6 @@ class ProjectionController {
       yearData.actual = totalActual > 0 ? Math.round(totalActual) : null;
 
       data.push(yearData);
-    }
-
-    // If time-traveling into the future, drop the initial offset years so the chart starts at the simulated future
-    if (offsetYears > 0) {
-      return data.slice(offsetYears);
     }
 
     return data;
