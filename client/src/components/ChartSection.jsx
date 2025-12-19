@@ -44,7 +44,8 @@ export function ChartSection({
     if (!projectionData || projectionData.length === 0) return null;
     const minYear = Math.min(...projectionData.map((p) => p.year));
     const maxYear = Math.max(...projectionData.map((p) => p.year));
-    if (nowYear <= minYear) return projectionData[0]?.label ?? null;
+    if (nowYear === minYear) return null;
+    if (nowYear < minYear) return projectionData[0]?.label ?? null;
     if (nowYear >= maxYear) return projectionData[projectionData.length - 1]?.label ?? null;
     const exact = projectionData.find((p) => p.year === nowYear);
     if (exact) return exact.label;

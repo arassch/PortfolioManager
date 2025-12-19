@@ -49,7 +49,8 @@ export function ProjectionComparisonSection({
     const years = data.map((row) => row.year);
     const minYear = Math.min(...years);
     const maxYear = Math.max(...years);
-    if (nowYear <= minYear) return data[0]?.label ?? null;
+    if (nowYear === minYear) return null;
+    if (nowYear < minYear) return data[0]?.label ?? null;
     if (nowYear >= maxYear) return data[data.length - 1]?.label ?? null;
     const exact = data.find((row) => row.year === nowYear);
     if (exact) return exact.label;
