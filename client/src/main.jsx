@@ -418,6 +418,7 @@ function PortfolioManager({ auth }) {
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [projectionRateDrafts, setProjectionRateDrafts] = useState({});
+  const [projectionYearsDraft, setProjectionYearsDraft] = useState(portfolio.projectionYears ?? 10);
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
   const [showActualInput, setShowActualInput] = useState(null);
@@ -602,6 +603,10 @@ function PortfolioManager({ auth }) {
     }
     return '';
   }, [tourOpen, tourStep, portfolio.accounts]);
+
+  useEffect(() => {
+    setProjectionYearsDraft(Number.isFinite(portfolio.projectionYears) ? portfolio.projectionYears : 10);
+  }, [portfolio.projectionYears]);
 
   // Auto-start tour for users who haven't completed it
   useEffect(() => {
@@ -1031,6 +1036,11 @@ function PortfolioManager({ auth }) {
     updatePortfolio(updatedPortfolio);
     await savePortfolio(updatedPortfolio, { skipReload });
   };
+  const commitProjectionYears = async (value) => {
+    const parsed = Math.max(1, parseInt(value, 10) || 1);
+    setProjectionYearsDraft(parsed);
+    await handleUpdatePortfolioSettings({ projectionYears: parsed }, { skipReload: true });
+  };
   const handleInlineProjectionYears = async (value) => {
     const parsed = Number(value);
     const safeVal = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
@@ -1316,7 +1326,23 @@ function PortfolioManager({ auth }) {
                   <h4 className="text-lg font-semibold text-white">Projection Scenarios</h4>
                   <p className="text-purple-200 text-sm">Select a projection to edit settings, expected returns, and rules.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-3 items-center">
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                    <label className="text-sm text-purple-100">Projection Years</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={projectionYearsDraft}
+                      onChange={(e) => setProjectionYearsDraft(e.target.value)}
+                      onBlur={() => commitProjectionYears(projectionYearsDraft)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitProjectionYears(projectionYearsDraft);
+                        }
+                      }}
+                      className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                    />
+                  </div>
                   <button
                     onClick={handleAddProjection}
                     data-tour="add-projection"
@@ -1369,7 +1395,7 @@ function PortfolioManager({ auth }) {
                       </div>
                       {fiTarget > 0 && (
                         <div className="text-xs text-purple-200">
-                          FI Year: {proj.fiYear ? proj.fiYear : 'Not reached'}
+                          FI Year: {proj.fiYear ? proj.fiYear : `FI not reached in ${portfolio.projectionYears || 10} years`}
                         </div>
                       )}
                       {proj.currentActual !== null && (
@@ -1411,6 +1437,7 @@ function PortfolioManager({ auth }) {
                   fiMonthlyExpenses={portfolio.fiMonthlyExpenses}
                   fiValue={portfolio.fiValue}
                   onUpdate={handleUpdatePortfolioSettings}
+                  showProjectionYears={false}
                 />
               </div>
             </div>

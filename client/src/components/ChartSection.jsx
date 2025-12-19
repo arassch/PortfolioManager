@@ -58,7 +58,7 @@ export function ChartSection({
   const buildAccountBreakdown = (current, prev) => {
     return accounts
       .filter((acc) => selectedAccounts[acc.id])
-      .map((acc) => {
+      .map((acc, idx) => {
         const nominalRate =
           (typeof acc.getReturnRate === 'function' ? acc.getReturnRate() : null) ??
           acc.returnRate ??
@@ -83,12 +83,14 @@ export function ChartSection({
         const calc = calcParts.join(' ');
         const estTax = currNet != null ? Math.max(currVal - currNet, 0) : null;
 
+        const color = getColorForIndex(idx, accounts.length);
         return {
           name: acc.name,
           current: currVal,
           net: currNet,
           estTax,
-          calc
+          calc,
+          color
         };
       })
       .filter(Boolean);
@@ -128,13 +130,19 @@ export function ChartSection({
           {showIndividualAccounts && (
             <div className="pt-1 text-xs text-slate-200 space-y-1">
               {buildAccountBreakdown(current, prev).map((item) => (
-                <div key={item.name}>
-                  <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
-                  {item.net != null && item.estTax != null && item.estTax > 0 && (
-                    <div className="text-[11px] text-emerald-200">
-                      After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
-                    </div>
-                  )}
+                <div key={item.name} className="flex items-start gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full mt-1"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <div>
+                    <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                    {item.net != null && item.estTax != null && item.estTax > 0 && (
+                      <div className="text-[11px] text-emerald-200">
+                        After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -175,13 +183,19 @@ export function ChartSection({
           {showIndividualAccounts && (
             <div className="pt-1 text-xs text-slate-200 space-y-1">
               {buildAccountBreakdown(current, prev).map((item) => (
-                <div key={item.name}>
-                  <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
-                  {item.net != null && item.estTax != null && item.estTax > 0 && (
-                    <div className="text-[11px] text-emerald-200">
-                      After-tax est: {formatCurrency(item.net)}
-                    </div>
-                  )}
+                <div key={item.name} className="flex items-start gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full mt-1"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <div>
+                    <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                    {item.net != null && item.estTax != null && item.estTax > 0 && (
+                      <div className="text-[11px] text-emerald-200">
+                        After-tax est: {formatCurrency(item.net)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

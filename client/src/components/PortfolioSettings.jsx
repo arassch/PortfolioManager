@@ -11,7 +11,8 @@ export function PortfolioSettings({
   fiAnnualExpenses = 0,
   fiMonthlyExpenses = 0,
   fiValue = 0,
-  onUpdate
+  onUpdate,
+  showProjectionYears = true
 }) {
   const [yearsInput, setYearsInput] = useState(projectionYears ?? '');
   const [taxInput, setTaxInput] = useState(taxRate ?? '');
@@ -77,17 +78,19 @@ export function PortfolioSettings({
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row items-start gap-4">
-        <div className="flex-1">
-          <label className="block text-purple-200 text-sm mb-2">Projection Years</label>
-          <input
-            type="number"
-            value={yearsInput}
-            onChange={(e) => setYearsInput(e.target.value)}
-            onBlur={commitYears}
-            onKeyDown={(e) => e.key === 'Enter' && commitYears()}
-            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-          />
-        </div>
+        {showProjectionYears && (
+          <div className="flex-1">
+            <label className="block text-purple-200 text-sm mb-2">Projection Years</label>
+            <input
+              type="number"
+              value={yearsInput}
+              onChange={(e) => setYearsInput(e.target.value)}
+              onBlur={commitYears}
+              onKeyDown={(e) => e.key === 'Enter' && commitYears()}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+            />
+          </div>
+        )}
         <div className="flex-1">
           <label className="block text-purple-200 text-sm mb-2">Tax Rate (%)</label>
           <input
