@@ -22,7 +22,8 @@ export function TransferRuleForm({
   accounts,
   onSubmit,
   onCancel,
-  baseCurrency = 'USD'
+  baseCurrency = 'USD',
+  isEdit = false
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const initialCurrency = rule?.externalCurrency || baseCurrency;
@@ -52,9 +53,11 @@ export function TransferRuleForm({
     };
   };
   const [formRule, setFormRule] = useState(buildInitial(rule));
+  const [applyToAll, setApplyToAll] = useState(false);
 
   useEffect(() => {
     setFormRule(buildInitial(rule));
+    setApplyToAll(false);
   }, [rule, baseCurrency]);
 
   const handleChange = (field, value) => {
@@ -82,7 +85,7 @@ export function TransferRuleForm({
       cleaned.toExternal = true;
     }
     cleaned.externalCurrency = cleaned.externalCurrency || baseCurrency;
-    onSubmit(cleaned);
+    onSubmit({ ...cleaned, applyToAll });
   };
 
   const renderAmountControls = (disableEarnings) => (
@@ -338,6 +341,17 @@ export function TransferRuleForm({
       </div>
 
       <div className="flex gap-2">
+        {!isEdit && (
+          <label className="flex items-center gap-2 text-white">
+            <input
+              type="checkbox"
+              checked={applyToAll}
+              onChange={(e) => setApplyToAll(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            Apply this rule to all projections
+          </label>
+        )}
         <button
           onClick={handleSubmit}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all"

@@ -1066,12 +1066,21 @@ function PortfolioManager({ auth }) {
 
   const handleAddRule = async (ruleData) => {
     try {
-      const newRules = RuleController.createRule(ruleData, activeProjection?.transferRules || []);
-      const updatedProjections = portfolio.projections.map(proj =>
-        String(proj.id) === String(targetProjectionId)
-          ? new Projection({ ...proj.toJSON(), transferRules: newRules })
-          : proj
-      );
+      const { applyToAll, ...payload } = ruleData || {};
+      let updatedProjections;
+      if (applyToAll) {
+        updatedProjections = portfolio.projections.map(proj => {
+          const newRulesAll = RuleController.createRule(payload, proj.transferRules || []);
+          return new Projection({ ...proj.toJSON(), transferRules: newRulesAll });
+        });
+      } else {
+        const newRules = RuleController.createRule(payload, activeProjection?.transferRules || []);
+        updatedProjections = portfolio.projections.map(proj =>
+          String(proj.id) === String(targetProjectionId)
+            ? new Projection({ ...proj.toJSON(), transferRules: newRules })
+            : proj
+        );
+      }
       const updatedPortfolio = new Portfolio({
         ...portfolio.toJSON(),
         projections: updatedProjections.map(p => p.toJSON()),
@@ -1616,6 +1625,7 @@ function PortfolioManager({ auth }) {
                         }}
                         accounts={portfolio.accounts}
                         baseCurrency={portfolio.baseCurrency}
+                        isEdit={!!editingRuleId}
                       />
                     </div>
                   )}
