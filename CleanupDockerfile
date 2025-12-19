@@ -1,0 +1,9 @@
+FROM postgres:16-alpine
+
+WORKDIR /app
+
+# Copy the cleanup script into the image
+COPY database/cleanup.sql /app/cleanup.sql
+
+# Run cleanup using DATABASE_URL provided by the job environment
+CMD ["sh", "-c", "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f /app/cleanup.sql"]
