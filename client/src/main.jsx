@@ -428,6 +428,8 @@ function PortfolioManager({ auth }) {
   const [tourStep, setTourStep] = useState(0);
   const [onboardingError, setOnboardingError] = useState(null);
   const lastTourAutoAdvanceRef = useRef(0);
+  const [showProjectionMenu, setShowProjectionMenu] = useState(false);
+  const navRef = useRef(null);
   const activeProjection = portfolio.getActiveProjection();
   const activeProjectionId = activeProjection?.id;
   const projectionView = useMemo(
@@ -608,6 +610,17 @@ function PortfolioManager({ auth }) {
     setProjectionYearsDraft(Number.isFinite(portfolio.projectionYears) ? portfolio.projectionYears : 10);
   }, [portfolio.projectionYears]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!navRef.current) return;
+      if (!navRef.current.contains(e.target)) {
+        setShowProjectionMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Auto-start tour for users who haven't completed it
   useEffect(() => {
     if (!auth?.user) return;
@@ -642,15 +655,14 @@ function PortfolioManager({ auth }) {
   }, [portfolio.accounts, selectedAccounts]);
 
   useEffect(() => {
-    // If projections change, keep an active projection selected when in projections tab
-    if (primaryTab !== 'projections') return;
+    // If projections change, keep an active projection selected
     const exists = (portfolio.projections || []).some(
       p => String(p.id) === String(activeProjectionId)
     );
     if (!exists && portfolio.projections[0]) {
       updatePortfolio(new Portfolio({ ...portfolio.toJSON(), activeProjectionId: portfolio.projections[0].id }));
     }
-  }, [primaryTab, portfolio.projections, activeProjectionId, portfolio, updatePortfolio]);
+  }, [portfolio.projections, activeProjectionId, portfolio, updatePortfolio]);
 
   useEffect(() => {
     if (primaryTab !== 'projections') return;
@@ -1290,7 +1302,12 @@ function PortfolioManager({ auth }) {
         </div>
 
         <div className="sticky top-0 z-30 mb-6 flex">
-          <div data-tour="nav-views" className="bg-slate-900/80 backdrop-blur-lg border border-white/20 rounded-xl px-3 py-3 shadow-lg flex items-center gap-2">
+          <div
+            data-tour="nav-views"
+            ref={navRef}
+            className="bg-slate-900/80 backdrop-blur-lg border border-white/20 rounded-xl px-3 py-3 shadow-lg flex items-center gap-2 relative"
+            onMouseLeave={() => setShowProjectionMenu(false)}
+          >
             <span className="text-xs uppercase tracking-wide text-purple-200 px-2">Views</span>
             <div className="flex gap-2">
               <button
@@ -1304,7 +1321,13 @@ function PortfolioManager({ auth }) {
                 Portfolio
               </button>
               <button
-                onClick={() => setPrimaryTab('projections')}
+                onClick={() => {
+                  setPrimaryTab('projections');
+                  setShowProjectionMenu(true);
+                }}
+                onMouseEnter={() => {
+                  setShowProjectionMenu(true);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm border transition-all ${
                   primaryTab === 'projections'
                     ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-500/30'
@@ -1324,6 +1347,22 @@ function PortfolioManager({ auth }) {
                 Analysis
               </button>
             </div>
+            {showProjectionMenu && portfolio.projections.length > 0 && (
+              <div className="absolute top-full left-24 mt-0 bg-slate-900/95 border border-white/20 rounded-lg shadow-xl z-10 min-w-[220px]">
+                <div className="px-3 py-2 text-xs uppercase text-purple-200 border-b border-white/10">Select Projection</div>
+                {portfolio.projections.map((proj) => (
+                  <button
+                    key={proj.id}
+                    onClick={() => handleSelectProjection(proj.id)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 ${
+                      String(proj.id) === String(activeProjectionId) ? 'bg-purple-600/40 text-white' : 'text-purple-100'
+                    }`}
+                  >
+                    {proj.name || `Projection ${proj.id}`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
