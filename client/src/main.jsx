@@ -1050,8 +1050,9 @@ function PortfolioManager({ auth }) {
   };
   const commitProjectionYears = async (value) => {
     const parsed = Math.max(1, parseInt(value, 10) || 1);
-    setProjectionYearsDraft(parsed);
-    await handleUpdatePortfolioSettings({ projectionYears: parsed }, { skipReload: true });
+    const clamped = Math.min(parsed, 200);
+    setProjectionYearsDraft(clamped);
+    await handleUpdatePortfolioSettings({ projectionYears: clamped }, { skipReload: true });
   };
   const handleInlineProjectionYears = async (value) => {
     const parsed = Number(value);
@@ -1380,8 +1381,12 @@ function PortfolioManager({ auth }) {
                     <input
                       type="number"
                       min="1"
+                      max="200"
                       value={projectionYearsDraft}
-                      onChange={(e) => setProjectionYearsDraft(e.target.value)}
+                      onChange={(e) => {
+                        setProjectionYearsDraft(e.target.value);
+                        commitProjectionYears(e.target.value);
+                      }}
                       onBlur={() => commitProjectionYears(projectionYearsDraft)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -1443,7 +1448,7 @@ function PortfolioManager({ auth }) {
                       </div>
                       {fiTarget > 0 && (
                         <div className="text-xs text-purple-200">
-                          FI Year: {proj.fiYear ? proj.fiYear : `FI not reached in ${portfolio.projectionYears || 10} years`}
+                          FI Year: {proj.fiYear ? proj.fiYear : `FI not reached in ${projectionYearsDraft || portfolio.projectionYears || 10} years`}
                         </div>
                       )}
                       {proj.currentActual !== null && (
