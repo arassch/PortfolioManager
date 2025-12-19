@@ -1023,18 +1023,18 @@ function PortfolioManager({ auth }) {
   const handleUpdateProjectionSettings = async (updates) => {
     // Legacy no-op: projection-specific settings removed
   };
-  const handleUpdatePortfolioSettings = async (updates) => {
+  const handleUpdatePortfolioSettings = async (updates, { skipReload = false } = {}) => {
     const updatedPortfolio = new Portfolio({
       ...portfolio.toJSON(),
       ...updates
     });
     updatePortfolio(updatedPortfolio);
-    await savePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio, { skipReload });
   };
   const handleInlineProjectionYears = async (value) => {
     const parsed = Number(value);
     const safeVal = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-    await handleUpdatePortfolioSettings({ projectionYears: safeVal });
+    await handleUpdatePortfolioSettings({ projectionYears: safeVal }, { skipReload: true });
   };
 
   // Transfer rule handlers
