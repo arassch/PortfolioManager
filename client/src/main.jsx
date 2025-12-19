@@ -718,6 +718,26 @@ function PortfolioManager({ auth }) {
     });
   }, [projectionSeries, fiTarget]);
 
+  const latestAccountValues = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const values = {};
+    (portfolio.accounts || []).forEach((acc) => {
+      const entries = portfolio.actualValues?.[acc.id] || {};
+      let latestYear = -Infinity;
+      let latestVal = null;
+      Object.entries(entries).forEach(([key, val]) => {
+        const numKey = Number(key);
+        const absYear = numKey >= 1900 ? numKey : currentYear + numKey;
+        if (!Number.isNaN(absYear) && absYear >= latestYear) {
+          latestYear = absYear;
+          latestVal = val;
+        }
+      });
+      values[acc.id] = latestVal != null ? latestVal : acc.balance;
+    });
+    return values;
+  }, [portfolio.accounts, portfolio.actualValues]);
+
   const projectionComparisonData = useMemo(() => {
     const years = new Set();
     projectionSeries.forEach(series => {
@@ -1511,7 +1531,11 @@ function PortfolioManager({ auth }) {
               <SummaryCard
                 title="Total Balance"
                 value={portfolio.accounts.reduce((sum, acc) => 
-                  sum + CurrencyService.convertToBase(acc.balance, acc.currency, portfolio.baseCurrency), 0
+                  sum + CurrencyService.convertToBase(
+                    latestAccountValues[acc.id] ?? acc.balance,
+                    acc.currency,
+                    portfolio.baseCurrency
+                  ), 0
                 )}
                 currency={portfolio.baseCurrency}
                 icon={DollarSign}
@@ -1566,6 +1590,7 @@ function PortfolioManager({ auth }) {
                     <AccountItem
                       key={account.id}
                       account={account}
+                      displayBalance={latestAccountValues[account.id]}
                       isEditing={editingAccountId === account.id}
                       onStartEdit={() => setEditingAccountId(account.id)}
                       onDelete={() => handleDeleteAccount(account.id)}

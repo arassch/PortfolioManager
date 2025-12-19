@@ -4,6 +4,7 @@ import CurrencyService from '../services/CurrencyService';
 
 export function AccountItem({ 
   account, 
+  displayBalance,
   isEditing, 
   onStartEdit, 
   onSaveEdit, 
@@ -120,7 +121,10 @@ export function AccountItem({
                 />
               ) : (
                 <span className="text-white font-semibold">
-                  {CurrencyService.formatCurrency(account.balance, account.currency)}
+                  {CurrencyService.formatCurrency(
+                    displayBalance != null ? displayBalance : account.balance,
+                    account.currency
+                  )}
                 </span>
               )}
             </div>

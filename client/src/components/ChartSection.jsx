@@ -67,6 +67,10 @@ export function ChartSection({
     map[acc.id] = acc;
     return map;
   }, {});
+  const getAccountColor = (accountId) => {
+    const idx = accounts.findIndex((a) => a.id === accountId);
+    return getColorForIndex(idx >= 0 ? idx : 0, accounts.length);
+  };
 
   const fiReachPoint = fiTarget
     ? projectionData.find((p) => p.projected != null && p.projected >= fiTarget)
@@ -102,7 +106,7 @@ export function ChartSection({
         const calc = calcParts.join(' ');
         const estTax = currNet != null ? Math.max(currVal - currNet, 0) : null;
 
-        const color = getColorForIndex(idx, accounts.length);
+        const color = getAccountColor(acc.id);
         return {
           name: acc.name,
           current: currVal,
@@ -501,8 +505,8 @@ export function ChartSection({
                 {showIndividualAccounts &&
                   accounts
                     .filter((acc) => selectedAccounts[acc.id])
-                    .map((account, idx) => {
-                      const color = getColorForIndex(idx, accounts.length);
+                    .map((account) => {
+                      const color = getAccountColor(account.id);
                       return (
                         <React.Fragment key={account.id}>
                           <Line
@@ -562,12 +566,12 @@ export function ChartSection({
                 {showIndividualAccounts ? (
                   accounts
                     .filter((acc) => selectedAccounts[acc.id])
-                    .map((account, idx) => (
+                    .map((account) => (
                       <Bar
                         key={account.id}
                         dataKey={`account_${account.id}_return`}
                         name={account.name}
-                        fill={getColorForIndex(idx, accounts.length)}
+                        fill={getAccountColor(account.id)}
                         animationDuration={1500}
                       />
                     ))

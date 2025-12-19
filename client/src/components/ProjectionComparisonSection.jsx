@@ -313,9 +313,11 @@ export function ProjectionComparisonSection({
                   dataKey="actual"
                   name="Actual data"
                   stroke="#34d399"
-                  strokeWidth={3}
-                  dot={{ fill: '#34d399', r: 4 }}
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={{ r: 4, stroke: '#0f172a', strokeWidth: 1, fill: '#34d399' }}
                   connectNulls
+                  isAnimationActive={false}
                 />
               )}
               {projections.map((proj, idx) => (
