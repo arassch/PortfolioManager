@@ -110,14 +110,14 @@ export function OnboardingTour({
         />
       )}
       <div
-        className="absolute rounded-xl border border-white/20 bg-slate-900/95 text-white shadow-2xl p-4 pointer-events-auto"
+        className="absolute rounded-2xl border border-purple-200/80 ring-2 ring-purple-300/70 bg-white/95 text-slate-900 shadow-[0_18px_56px_rgba(124,58,237,0.35)] p-5 pointer-events-auto"
         style={popoverStyle}
       >
-        <div className="text-xs uppercase tracking-wide text-purple-200">
+        <div className="text-xs uppercase tracking-wide text-purple-600">
           Step {stepIndex + 1} of {steps.length}
         </div>
-        <div className="mt-1 text-lg font-semibold">{step.title}</div>
-        <div className="mt-2 text-sm text-purple-100 whitespace-pre-line">
+        <div className="mt-1 text-lg font-semibold text-slate-900">{step.title}</div>
+        <div className="mt-2 text-sm text-slate-700 whitespace-pre-line">
           {step.content}
         </div>
 
@@ -125,7 +125,7 @@ export function OnboardingTour({
           <button
             type="button"
             onClick={onSkip}
-            className="text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-purple-100 hover:bg-white/10 transition"
+            className="text-xs px-3 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
           >
             Skip
           </button>
@@ -134,7 +134,7 @@ export function OnboardingTour({
               type="button"
               onClick={onBack}
               disabled={stepIndex === 0}
-              className="text-xs px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 disabled:opacity-40 transition"
+              className="text-xs px-3 py-2 rounded-lg bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-40 transition"
             >
               Back
             </button>
@@ -142,7 +142,7 @@ export function OnboardingTour({
               type="button"
               onClick={onNext}
               disabled={!canNext}
-              className="text-xs px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition"
+              className="text-xs px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition disabled:opacity-60"
             >
               {stepIndex === steps.length - 1 ? 'Finish' : 'Next'}
             </button>
