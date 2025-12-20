@@ -13,7 +13,6 @@ class CurrencyService {
   }
 
   async refreshRates() {
-    console.log('CurrencyService: refreshing exchange rates...');
     if (this.refreshing) return;
     // Refresh at most every 6 hours
     const SIX_HOURS = 1000 * 60 * 60 * 6;
@@ -26,7 +25,6 @@ class CurrencyService {
       if (data?.rates) {
         this.liveRates = data.rates;
         this.lastFetched = Date.now();
-        console.log('CurrencyService: fetched live exchange rates', this.liveRates);
       }
     } catch (err) {
       // Keep existing rates on failure
@@ -37,7 +35,6 @@ class CurrencyService {
   }
 
   getRate(currency) {
-    console.log('CurrencyService: getRate for', currency);
     if (!currency) return null;
     if (!this.refreshing) {
       // Start background refresh; don't await to keep API synchronous for callers.
@@ -47,7 +44,6 @@ class CurrencyService {
   }
 
   convertToBase(amount, fromCurrency, baseCurrency = 'USD') {
-    console.log('CurrencyService: convertToBase', amount, fromCurrency, '->', baseCurrency);
     if (!fromCurrency || !baseCurrency || fromCurrency === baseCurrency) {
       return Number(amount) || 0;
     }
@@ -64,7 +60,6 @@ class CurrencyService {
   }
 
   convertFromBase(baseAmount, baseCurrency = 'USD', toCurrency) {
-    console.log('CurrencyService: convertFromBase', baseAmount, baseCurrency, '->', toCurrency);
     const baseRate = this.getRate(baseCurrency);
     const targetRate = this.getRate(toCurrency);
     if (!baseRate || !targetRate) {

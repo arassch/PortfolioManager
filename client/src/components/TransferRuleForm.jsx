@@ -10,7 +10,8 @@ const DEFAULT_RULE = {
   externalTarget: '',
   externalAmount: 0,
   externalCurrency: null,
-  frequency: 'annual', // 'annual' | 'monthly' | 'one_time'
+  frequency: 'annual', // 'annual' | 'monthly' | 'one_time' | 'every_x_years'
+  intervalYears: 1,
   startDate: '',
   endDate: '',
   amountType: 'fixed',
@@ -49,6 +50,7 @@ export function TransferRuleForm({
       endDate: normalizeDate(base.endDate) || '',
       externalCurrency: base.externalCurrency || baseCurrency,
       external,
+      intervalYears: base.intervalYears || 1,
       direction
     };
   };
@@ -299,10 +301,22 @@ export function TransferRuleForm({
               onChange={(e) => handleChange('frequency', e.target.value)}
               className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
             >
-              {['one_time', ...FREQUENCIES].map(freq => (
-                <option key={freq} value={freq}>{freq}</option>
+              {['one_time', ...FREQUENCIES, 'every_x_years'].map(freq => (
+                <option key={freq} value={freq}>{freq.replace(/_/g, ' ')}</option>
               ))}
             </select>
+            {formRule.frequency === 'every_x_years' && (
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm mb-1">Repeat every (years)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formRule.intervalYears || 1}
+                  onChange={(e) => handleChange('intervalYears', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-32 px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
+            )}
           </div>
 
           {formRule.frequency === 'one_time' ? (

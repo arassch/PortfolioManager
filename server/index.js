@@ -531,22 +531,30 @@ const normalizeAccount = (row) => ({
   taxable: row.taxable,
 });
 
-const normalizeTransferRule = (row) => ({
-  id: row.id,
-  projectionId: row.projection_id,
-  portfolioId: row.portfolio_id,
-  fromExternal: row.from_external,
-  fromAccountId: row.from_account_id,
-  toAccountId: row.to_account_id,
-  toExternal: row.to_external,
-  externalTarget: row.external_target,
-  frequency: row.frequency || (row.one_time_at ? 'one_time' : 'annual'),
-  startDate: row.start_date || row.one_time_at,
-  endDate: row.end_date,
-  externalAmount: Number(row.external_amount || 0),
-  externalCurrency: row.external_currency,
-  amountType: row.amount_type
-});
+const normalizeTransferRule = (row) => {
+  const freq = row.frequency || (row.one_time_at ? 'one_time' : 'annual');
+  const intervalYears =
+    freq === 'every_x_years'
+      ? (row.interval_years && Number(row.interval_years)) || 1
+      : null;
+  return {
+    id: row.id,
+    projectionId: row.projection_id,
+    portfolioId: row.portfolio_id,
+    fromExternal: row.from_external,
+    fromAccountId: row.from_account_id,
+    toAccountId: row.to_account_id,
+    toExternal: row.to_external,
+    externalTarget: row.external_target,
+    frequency: freq,
+    intervalYears,
+    startDate: row.start_date || row.one_time_at,
+    endDate: row.end_date,
+    externalAmount: Number(row.external_amount || 0),
+    externalCurrency: row.external_currency,
+    amountType: row.amount_type
+  };
+};
 
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -1396,6 +1404,7 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
               portfolio_id,
               projection_id,
               frequency,
+              interval_years,
               start_date,
               end_date,
               one_time_at,
@@ -1408,12 +1417,15 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
               external_currency,
               amount_type
             )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
              RETURNING id`,
             [
               portfolioId,
               dbProjId,
               rule.frequency || 'annual',
+              rule.frequency === 'every_x_years'
+                ? (rule.intervalYears && Number(rule.intervalYears)) || 1
+                : null,
               rule.startDate || null,
               rule.frequency === 'one_time' ? null : (rule.endDate || null),
               rule.frequency === 'one_time' ? (rule.startDate || null) : null,

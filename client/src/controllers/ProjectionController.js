@@ -258,9 +258,17 @@ class ProjectionController {
       return one.getFullYear() === year && one.getMonth() + 1 === month;
     }
 
-    const freqMatch = isMonthlyPhase
-      ? rule.frequency === 'monthly'
-      : rule.frequency === 'annual';
+    let freqMatch = false;
+    if (rule.frequency === 'every_x_years') {
+      const interval = Math.max(1, Number(rule.intervalYears || rule.everyXYears || rule.repeatEveryYears || 1));
+      const startYear = rule.startDate ? new Date(rule.startDate).getFullYear() : year;
+      const isYearBoundary = !isMonthlyPhase; // apply on annual phase only
+      freqMatch = isYearBoundary && ((year - startYear) % interval === 0);
+    } else {
+      freqMatch = isMonthlyPhase
+        ? rule.frequency === 'monthly'
+        : rule.frequency === 'annual';
+    }
 
     if (rule.startDate) {
       const start = new Date(rule.startDate);

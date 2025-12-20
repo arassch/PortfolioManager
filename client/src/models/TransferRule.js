@@ -14,7 +14,10 @@ export class TransferRule {
     this.externalAmount = isNaN(amount) ? 0 : amount;
     this.externalCurrency = data.externalCurrency || 'USD';
     this.toAccountId = data.toAccountId; 
-    this.frequency = data.frequency || 'annual'; // 'annual' | 'monthly' | 'one_time'
+    this.frequency = data.frequency || 'annual'; // 'annual' | 'monthly' | 'one_time' | 'every_x_years'
+    this.intervalYears = this.frequency === 'every_x_years'
+      ? Math.max(1, parseInt(data.intervalYears ?? data.repeatEveryYears ?? data.everyXYears, 10) || 1)
+      : null;
     this.startDate = data.startDate || '';
     this.endDate = data.endDate || '';
     this.amountType = data.amountType || 'fixed'; // 'fixed' or 'earnings'
@@ -54,6 +57,7 @@ export class TransferRule {
       externalAmount: this.externalAmount,
       externalCurrency: this.externalCurrency,
       frequency: this.frequency,
+      intervalYears: this.intervalYears,
       startDate: this.startDate,
       endDate: this.endDate,
       amountType: this.amountType,

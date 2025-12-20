@@ -23,6 +23,10 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
     return '';
   })();
 
+  const freqLabel = rule.frequency === 'every_x_years'
+    ? `every ${rule.intervalYears || 1} years`
+    : rule.frequency;
+
   return (
     <div className="bg-white/5 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -32,7 +36,7 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
               <>
                 From: <span className="text-green-300">External</span>{' '}
                 <span className="text-purple-200 text-sm">
-                  ({amountText}/{rule.frequency})
+                  ({amountText}/{freqLabel})
                 </span>
               </>
             ) : (
@@ -43,7 +47,7 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
                   <span className="text-red-300">Deleted Account</span>
                 )}{' '}
                 <span className="text-purple-200 text-sm">
-                  ({rule.amountType === 'earnings' ? 'earnings' : `${CurrencyService.formatCurrency(rule.externalAmount, fromAccount?.currency || 'USD')}`}/{rule.frequency})
+                  ({rule.amountType === 'earnings' ? 'earnings' : `${CurrencyService.formatCurrency(rule.externalAmount, fromAccount?.currency || 'USD')}`}/{freqLabel})
                 </span>
               </>
             )}

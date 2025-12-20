@@ -96,6 +96,7 @@ CREATE TABLE transfer_rules (
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
   projection_id INTEGER NOT NULL REFERENCES projections(id) ON DELETE CASCADE,
   frequency VARCHAR(50), -- 'monthly' or 'annual'
+  interval_years INTEGER,
   start_date DATE,
   end_date DATE,
   one_time_at DATE,
