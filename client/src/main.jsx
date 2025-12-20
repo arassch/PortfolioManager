@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import { 
@@ -431,6 +431,16 @@ function PortfolioManager({ auth }) {
   const [showProjectionMenu, setShowProjectionMenu] = useState(false);
   const navRef = useRef(null);
   const TIME_TRAVEL_YEARS = Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0);
+  const getAgeAtYear = useCallback(
+    (year) => {
+      if (!portfolio.birthdate || !year) return null;
+      const bd = new Date(portfolio.birthdate);
+      if (Number.isNaN(bd.getTime())) return null;
+      const birthYear = bd.getFullYear();
+      return Math.max(0, year - birthYear);
+    },
+    [portfolio.birthdate]
+  );
   const activeProjection = portfolio.getActiveProjection();
   const activeProjectionId = activeProjection?.id;
   const projectionView = useMemo(
@@ -703,16 +713,18 @@ function PortfolioManager({ auth }) {
       const fiHit = fiTarget > 0
         ? series.data.find((d) => d.projected != null && d.projected >= fiTarget)
         : null;
+      const fiAge = fiHit?.year ? getAgeAtYear(fiHit.year) : null;
       return {
         id: series.id,
         name: series.name,
         createdAt: series.createdAt,
         finalProjected: finalPoint.projected,
         currentActual: actualNow,
-        fiYear: fiHit?.year || null
+        fiYear: fiHit?.year || null,
+        fiAge
       };
     });
-  }, [projectionSeries, fiTarget]);
+  }, [projectionSeries, fiTarget, getAgeAtYear]);
 
   const latestAccountValues = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -1502,6 +1514,7 @@ function PortfolioManager({ auth }) {
                       {fiTarget > 0 && (
                         <div className="text-xs text-purple-200">
                           FI Year: {proj.fiYear ? proj.fiYear : `FI not reached in ${projectionYearsDraft || portfolio.projectionYears || 10} years`}
+                          {proj.fiYear && proj.fiAge != null ? ` (Age ${proj.fiAge})` : ''}
                         </div>
                       )}
                       {proj.currentActual !== null && (
@@ -1541,6 +1554,7 @@ function PortfolioManager({ auth }) {
                   projectionYears={portfolio.projectionYears}
                   taxRate={portfolio.taxRate}
                   baseCurrency={portfolio.baseCurrency}
+                  birthdate={portfolio.birthdate}
                   fiMode={portfolio.fiMode}
                   fiMultiplier={portfolio.fiMultiplier}
                   fiAnnualExpenses={portfolio.fiAnnualExpenses}
@@ -1628,6 +1642,7 @@ function PortfolioManager({ auth }) {
               onSelectAllAccounts={selectAllAccounts}
               onSelectNoAccounts={selectNoAccounts}
               fiTarget={fiTarget}
+              birthdate={portfolio.birthdate}
             />
           </div>
         )}
@@ -1653,6 +1668,7 @@ function PortfolioManager({ auth }) {
               onToggleIndividualAccounts={setShowIndividualAccounts}
               taxRate={projectionView.taxRate}
               fiTarget={fiTarget}
+              birthdate={portfolio.birthdate}
             />
 
             <div className="grid lg:grid-cols-5 gap-4 mb-8 mt-6">

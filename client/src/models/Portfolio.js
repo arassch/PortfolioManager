@@ -18,6 +18,7 @@ export class Portfolio {
     this.fiAnnualExpenses = data.fiAnnualExpenses || 0;
     this.fiMonthlyExpenses = data.fiMonthlyExpenses || 0;
     this.fiValue = data.fiValue || 0;
+    this.birthdate = data.birthdate || null;
     const projectionsFromData = (data.projections || []).map(p => new Projection(p));
 
     if (projectionsFromData.length > 0) {
@@ -115,6 +116,7 @@ export class Portfolio {
       fiAnnualExpenses: this.fiAnnualExpenses,
       fiMonthlyExpenses: this.fiMonthlyExpenses,
       fiValue: this.fiValue,
+      birthdate: this.birthdate,
       projections: this.projections.map(proj => proj.toJSON()),
       activeProjectionId: this.activeProjectionId,
       transferRules: this.transferRules.map(rule => rule.toJSON()) // legacy fallback

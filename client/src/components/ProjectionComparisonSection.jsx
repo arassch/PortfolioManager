@@ -23,6 +23,7 @@ export function ProjectionComparisonSection({
   projections,
   accounts,
   baseCurrency,
+  birthdate,
   selectedAccounts,
   onToggleAccount,
   projectionYears,
@@ -43,6 +44,15 @@ export function ProjectionComparisonSection({
     if (abs >= 1_000_000) return `${symbol}${(val / 1_000_000).toFixed(1)}M`;
     if (abs >= 1_000) return `${symbol}${(val / 1_000).toFixed(1)}k`;
     return `${symbol}${val.toFixed(0)}`;
+  };
+  const getAgeAtLabel = (label) => {
+    if (!birthdate || !label) return null;
+    const year = Number(label);
+    if (!Number.isFinite(year)) return null;
+    const bd = new Date(birthdate);
+    if (Number.isNaN(bd.getTime())) return null;
+    const birthYear = bd.getFullYear();
+    return Math.max(0, year - birthYear);
   };
   const nowLabel = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -111,10 +121,14 @@ export function ProjectionComparisonSection({
     if (!active || !payload?.length) return null;
     const point = payload[0].payload;
     const hasActual = point.actual != null;
+    const age = getAgeAtLabel(label);
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">Year {label}</div>
         <div className="space-y-1 mt-1">
+          {age != null && (
+            <div className="text-xs text-purple-200">Age: {age}</div>
+          )}
           {hasActual && (
             <div className="text-green-200">Actual data: {formatCurrency(point.actual)}</div>
           )}
@@ -178,7 +192,13 @@ export function ProjectionComparisonSection({
         </div>
         {hoverRow && (
           <div className="text-right text-sm text-purple-100">
-            <div className="font-semibold text-white">Hover year: {hoverRow.label}</div>
+            <div className="font-semibold text-white">
+              Hover year: {hoverRow.label}
+              {birthdate && hoverRow.label ? (() => {
+                const age = getAgeAtLabel(hoverRow.label);
+                return age != null ? ` (Age ${age})` : '';
+              })() : ''}
+            </div>
             {hoverRow.actual != null && (
               <div>Actual: {formatCurrency(hoverRow.actual)}</div>
             )}

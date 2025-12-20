@@ -6,6 +6,7 @@ export function PortfolioSettings({
   projectionYears,
   taxRate,
   baseCurrency,
+  birthdate,
   fiMode = 'annual_expenses',
   fiMultiplier = 25,
   fiAnnualExpenses = 0,
@@ -16,6 +17,7 @@ export function PortfolioSettings({
 }) {
   const [yearsInput, setYearsInput] = useState(projectionYears ?? '');
   const [taxInput, setTaxInput] = useState(taxRate ?? '');
+  const [birthdateInput, setBirthdateInput] = useState(birthdate || '');
   const [mode, setMode] = useState(fiMode || 'annual_expenses');
   const [multiplierInput, setMultiplierInput] = useState(fiMultiplier ?? 25);
   const [annualInput, setAnnualInput] = useState(fiAnnualExpenses ?? 0);
@@ -29,6 +31,14 @@ export function PortfolioSettings({
   useEffect(() => {
     setTaxInput(taxRate);
   }, [taxRate]);
+
+  useEffect(() => {
+    const normalize = (val) => {
+      if (!val) return '';
+      return typeof val === 'string' && val.includes('T') ? val.split('T')[0] : val;
+    };
+    setBirthdateInput(normalize(birthdate));
+  }, [birthdate]);
 
   useEffect(() => {
     setMode(fiMode || 'annual_expenses');
@@ -68,6 +78,15 @@ export function PortfolioSettings({
     onUpdate(payload);
   };
 
+  const commitBirthdate = () => {
+    if (!birthdateInput) {
+      onUpdate({ birthdate: null });
+      return;
+    }
+    const normalized = birthdateInput.includes('T') ? birthdateInput.split('T')[0] : birthdateInput;
+    onUpdate({ birthdate: normalized });
+  };
+
   const fiTarget = (() => {
     const mult = Number.isFinite(parseFloat(multiplierInput)) ? parseFloat(multiplierInput) : 25;
     if (mode === 'value') return Number(valueInput) || 0;
@@ -91,6 +110,17 @@ export function PortfolioSettings({
             />
           </div>
         )}
+        <div className="flex-1">
+          <label className="block text-purple-200 text-sm mb-2">Birthdate</label>
+          <input
+            type="date"
+            value={birthdateInput || ''}
+            onChange={(e) => setBirthdateInput(e.target.value)}
+            onBlur={commitBirthdate}
+            onKeyDown={(e) => e.key === 'Enter' && commitBirthdate()}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+          />
+        </div>
         <div className="flex-1">
           <label className="block text-purple-200 text-sm mb-2">Tax Rate (%)</label>
           <input

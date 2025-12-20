@@ -626,7 +626,7 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
   const initialStatus = isWhitelisted ? 'active' : 'trialing';
   const userRes = await pool.query(
-    'INSERT INTO users (email, password_hash, verified, is_whitelisted, subscription_status, trial_ends_at) VALUES ($1, $2, FALSE, $3, $4, $5) RETURNING id, email, is_whitelisted, trial_ends_at, subscription_status',
+    'INSERT INTO users (email, password_hash, verified, is_whitelisted, subscription_status, trial_ends_at) VALUES ($1, $2, FALSE, $3, $4, $5) RETURNING id, email, is_whitelisted, trial_ends_at, subscription_status, birthdate',
     [email, passwordHash, isWhitelisted, initialStatus, isWhitelisted ? null : trialEnds]
   );
   const user = userRes.rows[0];
@@ -1107,7 +1107,8 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       subscriptionStatus: user.subscription_status,
       subscriptionPeriodEnd: user.subscription_period_end,
       trialEndsAt: user.trial_ends_at,
-      isWhitelisted: user.is_whitelisted
+      isWhitelisted: user.is_whitelisted,
+      birthdate: user.birthdate
     };
     
     // Accounts shared across projections
@@ -1198,6 +1199,7 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       subscriptionPeriodEnd: userMeta.subscriptionPeriodEnd,
       trialEndsAt: userMeta.trialEndsAt,
       isWhitelisted: userMeta.isWhitelisted,
+      birthdate: userMeta.birthdate,
       meta: userMeta,
       accounts,
       actualValues,
@@ -1235,7 +1237,8 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     fiMultiplier = 25,
     fiAnnualExpenses = 0,
     fiMonthlyExpenses = 0,
-    fiValue = 0
+    fiValue = 0,
+    birthdate = null
   } = req.body;
     const userRes = await pool.query(
       'SELECT * FROM users WHERE id = $1',
@@ -1252,13 +1255,16 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
     try {
       await client.query('BEGIN');
 
-      // Ensure user exists
+      // Ensure user exists and update birthdate if provided
       const userCheck = await client.query(
         'SELECT id FROM users WHERE id = $1',
         [userId]
       );
       if (userCheck.rows.length === 0) {
         throw new Error('User not found');
+      }
+      if (birthdate !== undefined) {
+        await client.query('UPDATE users SET birthdate = $2 WHERE id = $1', [userId, birthdate || null]);
       }
       
       const primaryProjection = projections[0] || {};

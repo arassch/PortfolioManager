@@ -11,6 +11,7 @@ CREATE TABLE users (
   onboarding_version INTEGER DEFAULT 1,
   onboarding_step INTEGER DEFAULT 0,
   onboarding_completed_at TIMESTAMPTZ,
+  birthdate DATE,
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   subscription_status VARCHAR(50),

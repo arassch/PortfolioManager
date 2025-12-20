@@ -16,6 +16,7 @@ export function ChartSection({
   showIndividualAccounts,
   activeTab,
   baseCurrency,
+  birthdate,
   taxRate,
   projectionName,
   accountFilterHint,
@@ -71,6 +72,15 @@ export function ChartSection({
   const getAccountColor = (accountId) => {
     const idx = accounts.findIndex((a) => a.id === accountId);
     return getColorForIndex(idx >= 0 ? idx : 0, accounts.length);
+  };
+  const getAgeAtLabel = (label) => {
+    if (!birthdate || !label) return null;
+    const year = Number(label);
+    if (!Number.isFinite(year)) return null;
+    const bd = new Date(birthdate);
+    if (Number.isNaN(bd.getTime())) return null;
+    const birthYear = bd.getFullYear();
+    return Math.max(0, year - birthYear);
   };
 
   const fiReachPoint = fiTarget
@@ -135,12 +145,14 @@ export function ChartSection({
     const delta = current.projected - prevValue;
     const pct = prevValue ? `${((delta / prevValue) * 100).toFixed(1)}%` : 'n/a';
     const net = current.projectedNet != null ? current.projectedNet : null;
-    const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
+        const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
+    const age = getAgeAtLabel(label);
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
+          {age != null && <div className="text-xs text-purple-200">Age: {age}</div>}
           <div>Projected: {formatCurrency(current.projected)}</div>
           {prev && (
             <div className="text-xs text-purple-200">
@@ -199,11 +211,13 @@ export function ChartSection({
     const pct = prevProjected ? `${((delta / prevProjected) * 100).toFixed(1)}%` : 'n/a';
     const net = current.projectedNet != null ? current.projectedNet : null;
     const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
+    const age = getAgeAtLabel(label);
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
         <div className="font-semibold">{label}</div>
         <div className="mt-1 space-y-1">
+          {age != null && <div className="text-xs text-purple-200">Age: {age}</div>}
           <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
           {/* {net != null && (
             <div className="text-emerald-200">
