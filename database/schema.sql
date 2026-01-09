@@ -92,6 +92,15 @@ CREATE TABLE projection_accounts (
   UNIQUE(projection_id, account_id)
 );
 
+CREATE TABLE projection_milestones (
+  id SERIAL PRIMARY KEY,
+  projection_id INTEGER NOT NULL REFERENCES projections(id) ON DELETE CASCADE,
+  label VARCHAR(255) NOT NULL,
+  year INTEGER NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE transfer_rules (
   id SERIAL PRIMARY KEY,
   portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
@@ -99,7 +108,9 @@ CREATE TABLE transfer_rules (
   frequency VARCHAR(50), -- 'monthly' or 'annual'
   interval_years INTEGER,
   start_date DATE,
+  start_milestone_id INTEGER REFERENCES projection_milestones(id) ON DELETE SET NULL,
   end_date DATE,
+  end_milestone_id INTEGER REFERENCES projection_milestones(id) ON DELETE SET NULL,
   one_time_at DATE,
   from_external BOOLEAN DEFAULT false,
   from_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,

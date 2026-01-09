@@ -20,6 +20,8 @@ export class TransferRule {
       : null;
     this.startDate = data.startDate || '';
     this.endDate = data.endDate || '';
+    this.startMilestoneId = data.startMilestoneId || null;
+    this.endMilestoneId = data.endMilestoneId || null;
     this.amountType = data.amountType || 'fixed'; // 'fixed' or 'earnings'
     if (this.amountType === 'earnings' && (!this.externalAmount || this.externalAmount <= 0)) {
       this.externalAmount = 100; // default to 100% of earnings
@@ -59,7 +61,9 @@ export class TransferRule {
       frequency: this.frequency,
       intervalYears: this.intervalYears,
       startDate: this.startDate,
+      startMilestoneId: this.startMilestoneId,
       endDate: this.endDate,
+      endMilestoneId: this.endMilestoneId,
       amountType: this.amountType,
       toAccountId: this.toAccountId,
       external: this.external,

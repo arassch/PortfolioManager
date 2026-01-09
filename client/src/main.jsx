@@ -431,6 +431,10 @@ function PortfolioManager({ auth }) {
   const [showProjectionMenu, setShowProjectionMenu] = useState(false);
   const navRef = useRef(null);
   const TIME_TRAVEL_YEARS = Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0);
+  const [milestoneDraft, setMilestoneDraft] = useState({ label: '', year: '' });
+  const [milestoneEditId, setMilestoneEditId] = useState(null);
+  const [milestoneEditDraft, setMilestoneEditDraft] = useState({ label: '', year: '' });
+  const [applyMilestoneAll, setApplyMilestoneAll] = useState(false);
   const getAgeAtYear = useCallback(
     (year) => {
       if (!portfolio.birthdate || !year) return null;
@@ -1210,6 +1214,106 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
+  const handleAddMilestone = async () => {
+    const label = milestoneDraft.label?.trim() || 'Milestone';
+    const yearNum = Number(milestoneDraft.year) || new Date().getFullYear();
+    const makeMilestone = (proj) => ({
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      label,
+      year: yearNum,
+      sortOrder: (proj?.milestones?.length || 0)
+    });
+    const updatedProjections = portfolio.projections.map(proj => {
+      if (applyMilestoneAll || String(proj.id) === String(targetProjectionId)) {
+        const m = makeMilestone(proj);
+        return new Projection({
+          ...proj.toJSON(),
+          milestones: [...(proj.milestones || []), m].sort((a, b) =>
+            (a.sortOrder ?? a.year) - (b.sortOrder ?? b.year) || a.year - b.year
+          )
+        });
+      }
+      return proj;
+    });
+    const updatedPortfolio = new Portfolio({
+      ...portfolio.toJSON(),
+      projections: updatedProjections.map(p => p.toJSON())
+    });
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
+    setMilestoneDraft({ label: '', year: '' });
+    setApplyMilestoneAll(false);
+  };
+
+  const handleDeleteMilestone = async (id) => {
+    const updatedProjections = portfolio.projections.map(proj =>
+      String(proj.id) === String(targetProjectionId)
+        ? new Projection({
+            ...proj.toJSON(),
+            milestones: (proj.milestones || []).filter(m => m.id !== id)
+          })
+        : proj
+    );
+    const updatedPortfolio = new Portfolio({
+      ...portfolio.toJSON(),
+      projections: updatedProjections.map(p => p.toJSON())
+    });
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
+  };
+
+  const handleStartEditMilestone = (m) => {
+    setMilestoneEditId(m.id);
+    setMilestoneEditDraft({ label: m.label, year: m.year });
+  };
+
+  const handleSaveMilestone = async () => {
+    if (!milestoneEditId) return;
+    const label = milestoneEditDraft.label?.trim() || 'Milestone';
+    const yearNum = Number(milestoneEditDraft.year) || new Date().getFullYear();
+    const updatedProjections = portfolio.projections.map(proj => {
+      if (String(proj.id) !== String(targetProjectionId)) return proj;
+      const oldMilestone = (proj.milestones || []).find(m => m.id === milestoneEditId);
+      const oldYear = oldMilestone ? Number(oldMilestone.year) : null;
+
+      const updatedMilestones = (proj.milestones || []).map(m =>
+        m.id === milestoneEditId ? { ...m, label, year: yearNum } : m
+      ).sort((a, b) =>
+        (a.sortOrder ?? a.year) - (b.sortOrder ?? b.year) || a.year - b.year
+      );
+
+      // Update transfer rules that reference the milestone id or exact Jan 1 date
+      const updatedRules = (proj.transferRules || []).map(rule => {
+        const nextRule = { ...rule };
+        if (rule.startMilestoneId && rule.startMilestoneId === milestoneEditId) {
+          nextRule.startDate = `${yearNum}-01-01`;
+        } else if (oldYear && rule.startDate === `${oldYear}-01-01`) {
+          nextRule.startDate = `${yearNum}-01-01`;
+        }
+        if (rule.endMilestoneId && rule.endMilestoneId === milestoneEditId) {
+          nextRule.endDate = `${yearNum}-01-01`;
+        } else if (oldYear && rule.endDate === `${oldYear}-01-01`) {
+          nextRule.endDate = `${yearNum}-01-01`;
+        }
+        return nextRule;
+      });
+
+      return new Projection({
+        ...proj.toJSON(),
+        milestones: updatedMilestones,
+        transferRules: updatedRules
+      });
+    });
+    const updatedPortfolio = new Portfolio({
+      ...portfolio.toJSON(),
+      projections: updatedProjections.map(p => p.toJSON())
+    });
+    updatePortfolio(updatedPortfolio);
+    await savePortfolio(updatedPortfolio);
+    setMilestoneEditId(null);
+    setMilestoneEditDraft({ label: '', year: '' });
+  };
+
   const renderPlanModal = () => {
     if (!showPlanModal) return null;
     const priceMonthly = import.meta.env.VITE_PRICE_MONTHLY || 'Monthly plan';
@@ -1671,6 +1775,115 @@ function PortfolioManager({ auth }) {
               birthdate={portfolio.birthdate}
             />
 
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 mb-6 border border-white/20">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-white font-semibold">Milestones</h4>
+                  <p className="text-purple-200 text-sm">Define key years (e.g., retirement) to reuse in rules and planning.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {(activeProjection.milestones || []).sort((a,b) => (a.sortOrder ?? a.year) - (b.sortOrder ?? b.year) || a.year - b.year).map((m) => {
+                  const age = getAgeAtYear(m.year);
+                  return (
+                    <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white text-sm flex-wrap">
+                      {milestoneEditId === m.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={milestoneEditDraft.label}
+                            onChange={(e) => setMilestoneEditDraft(prev => ({ ...prev, label: e.target.value }))}
+                            className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                          />
+                          <input
+                            type="number"
+                            value={milestoneEditDraft.year}
+                            onChange={(e) => setMilestoneEditDraft(prev => ({ ...prev, year: e.target.value }))}
+                            className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                          />
+                          <button
+                            onClick={handleSaveMilestone}
+                            className="text-green-300 hover:text-green-200 text-xs px-2 py-1 border border-green-300/40 rounded"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => { setMilestoneEditId(null); setMilestoneEditDraft({ label: '', year: '' }); }}
+                            className="text-purple-200 hover:text-purple-100 text-xs px-2 py-1 border border-white/20 rounded"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <div className="font-semibold">{m.label}</div>
+                            <div className="text-xs text-purple-200">Year {m.year}{age != null ? ` · Age ${age}` : ''}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleStartEditMilestone(m)}
+                              className="text-blue-300 hover:text-blue-200 text-xs px-2 py-1 border border-blue-300/40 rounded"
+                              title="Edit milestone"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMilestone(m.id)}
+                              className="text-red-300 hover:text-red-200 text-xs px-2 py-1 border border-red-300/40 rounded"
+                              title="Delete milestone"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+                {(!activeProjection.milestones || activeProjection.milestones.length === 0) && (
+                  <div className="text-sm text-purple-200">No milestones yet.</div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-purple-200 text-sm mb-1">Label</label>
+                  <input
+                    type="text"
+                    value={milestoneDraft.label}
+                    onChange={(e) => setMilestoneDraft(prev => ({ ...prev, label: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    placeholder="e.g., Retirement"
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="block text-purple-200 text-sm mb-1">Year</label>
+                  <input
+                    type="number"
+                    value={milestoneDraft.year}
+                    onChange={(e) => setMilestoneDraft(prev => ({ ...prev, year: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    placeholder={new Date().getFullYear()}
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-purple-200 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={applyMilestoneAll}
+                    onChange={(e) => setApplyMilestoneAll(e.target.checked)}
+                    className="w-4 h-4 rounded"
+                  />
+                  Add to all projections
+                </label>
+                <button
+                  onClick={handleAddMilestone}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+                >
+                  Add Milestone
+                </button>
+              </div>
+            </div>
+
             <div className="grid lg:grid-cols-5 gap-4 mb-8 mt-6">
               <div data-tour="return-rates" className="bg-white/10 backdrop-blur-lg rounded-xl p-3 border border-white/20 lg:col-span-2">
                 <div className="flex flex-col gap-2 mb-3">
@@ -1753,7 +1966,7 @@ function PortfolioManager({ auth }) {
                 </div>
 
                 {(showAddRule || editingRuleId) && (
-                  <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
+                  // <div className="bg-white/5 rounded-lg p-4 mb-4 border border-white/20">
                     <TransferRuleForm
                       rule={editingRuleId ? (activeProjection?.transferRules || []).find(r => r.id === editingRuleId) : null}
                       onSubmit={editingRuleId ? handleSaveRuleEdit : handleAddRule}
@@ -1763,9 +1976,10 @@ function PortfolioManager({ auth }) {
                       }}
                       accounts={portfolio.accounts}
                       baseCurrency={portfolio.baseCurrency}
+                      milestones={activeProjection?.milestones || []}
                       isEdit={!!editingRuleId}
                     />
-                  </div>
+                  /* </div> */
                 )}
 
                 <div className="space-y-3">

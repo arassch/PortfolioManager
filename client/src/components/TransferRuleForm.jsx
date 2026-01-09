@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Bookmark } from 'lucide-react';
 import { FREQUENCIES, AMOUNT_TYPES, CURRENCIES } from '../constants/currencies';
 
 const DEFAULT_RULE = {
@@ -21,6 +22,7 @@ const DEFAULT_RULE = {
 export function TransferRuleForm({
   rule = null,
   accounts,
+  milestones = [],
   onSubmit,
   onCancel,
   baseCurrency = 'USD',
@@ -56,6 +58,7 @@ export function TransferRuleForm({
   };
   const [formRule, setFormRule] = useState(buildInitial(rule));
   const [applyToAll, setApplyToAll] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
 
   useEffect(() => {
     setFormRule(buildInitial(rule));
@@ -87,7 +90,74 @@ export function TransferRuleForm({
       cleaned.toExternal = true;
     }
     cleaned.externalCurrency = cleaned.externalCurrency || baseCurrency;
+    // Reset dropdown state
+    setOpenDropdown(null);
     onSubmit({ ...cleaned, applyToAll });
+  };
+
+  const MilestonePicker = ({ onSelect, name }) => {
+    const hasMilestones = milestones && milestones.length > 0;
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => hasMilestones && setOpenDropdown(openDropdown === name ? null : name)}
+          className="p-2 rounded-md bg-white/10 border border-white/20 text-white hover:bg-white/20 disabled:opacity-50"
+          disabled={!hasMilestones}
+          title="Pick milestone"
+        >
+          <Bookmark className="w-4 h-4" />
+        </button>
+        {openDropdown === name && (
+          <div className="absolute z-20 right-0 mt-1 w-48 bg-slate-900 border border-white/20 rounded-lg shadow-lg max-h-56 overflow-auto">
+            {milestones.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  onSelect(m);
+                  setOpenDropdown(null);
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10"
+              >
+                <div className="font-semibold">{m.label}</div>
+                <div className="text-xs text-purple-200">Year {m.year}</div>
+              </button>
+            ))}
+            {milestones.length === 0 && (
+              <div className="px-3 py-2 text-sm text-purple-200">No milestones</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const DateWithMilestone = ({ value, onChange, name, onSelectMilestone, onManualChange }) => {
+    const displayVal = value ? value.slice(0, 7) : '';
+    const handleChange = (val) => onChange(val ? `${val}-01` : '');
+    return (
+      <div className="relative flex items-center">
+        <input
+          type="month"
+          value={displayVal}
+          onChange={(e) => {
+            onManualChange?.();
+            handleChange(e.target.value);
+          }}
+          className="w-full pr-12 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+        />
+        <div className="absolute right-1 flex items-center gap-1">
+          <MilestonePicker
+            name={name}
+            onSelect={(m) => {
+              onSelectMilestone?.(m);
+              handleChange(`${m.year}-01`);
+            }}
+          />
+        </div>
+      </div>
+    );
   };
 
   const renderAmountControls = (disableEarnings) => (
@@ -320,33 +390,36 @@ export function TransferRuleForm({
           </div>
 
           {formRule.frequency === 'one_time' ? (
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Date</label>
-              <input
-                type="date"
+            <div className="space-y-2">
+              <label className="block text-purple-200 text-sm mb-1">Date</label>
+              <DateWithMilestone
                 value={formRule.startDate}
-                onChange={(e) => handleChange('startDate', e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                onChange={(v) => handleChange('startDate', v)}
+                name="one_time"
+                onSelectMilestone={(m) => handleChange('startMilestoneId', m.id)}
+                onManualChange={() => handleChange('startMilestoneId', null)}
               />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-purple-200 text-sm mb-2">Start Date</label>
-                <input
-                  type="date"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="block text-purple-200 text-sm mb-1">Start Date</label>
+                <DateWithMilestone
                   value={formRule.startDate}
-                  onChange={(e) => handleChange('startDate', e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  onChange={(v) => handleChange('startDate', v)}
+                  name="start"
+                  onSelectMilestone={(m) => handleChange('startMilestoneId', m.id)}
+                  onManualChange={() => handleChange('startMilestoneId', null)}
                 />
               </div>
-              <div>
-                <label className="block text-purple-200 text-sm mb-2">End Date (optional)</label>
-                <input
-                  type="date"
+              <div className="space-y-2">
+                <label className="block text-purple-200 text-sm mb-1">End Date (optional)</label>
+                <DateWithMilestone
                   value={formRule.endDate}
-                  onChange={(e) => handleChange('endDate', e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  onChange={(v) => handleChange('endDate', v)}
+                  name="end"
+                  onSelectMilestone={(m) => handleChange('endMilestoneId', m.id)}
+                  onManualChange={() => handleChange('endMilestoneId', null)}
                 />
               </div>
             </div>

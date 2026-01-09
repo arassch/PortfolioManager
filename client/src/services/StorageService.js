@@ -67,11 +67,14 @@ class StorageService {
         fromAccountId: rule.fromAccountId || null,
         toAccountId: rule.toAccountId || null,
         startDate: rule.startDate ? rule.startDate : null,
-        endDate: rule.endDate ? rule.endDate : null
+        endDate: rule.endDate ? rule.endDate : null,
+        startMilestoneId: rule.startMilestoneId || null,
+        endMilestoneId: rule.endMilestoneId || null
       });
 
       const sanitized = {
         ...portfolioData,
+        birthdate: portfolioData.birthdate || null,
         taxRate: portfolioData.taxRate != null ? Number(portfolioData.taxRate) : portfolioData.taxRate,
         projectionYears: portfolioData.projectionYears != null ? Number(portfolioData.projectionYears) : portfolioData.projectionYears,
         accounts: (portfolioData.accounts || []).map(acc => ({
@@ -88,6 +91,12 @@ class StorageService {
             inflationRate: proj.inflationRate != null ? Number(proj.inflationRate) : 0,
             taxRate: proj.taxRate != null ? Number(proj.taxRate) : proj.taxRate,
             projectionYears: proj.projectionYears != null ? Number(proj.projectionYears) : proj.projectionYears,
+            milestones: (proj.milestones || []).map((m, idx) => ({
+              id: m.id,
+              label: m.label,
+              year: Number(m.year) || 0,
+              sortOrder: m.sortOrder != null ? Number(m.sortOrder) : idx
+            })),
             transferRules: (proj.transferRules || []).map(sanitizeRule)
           };
         }),

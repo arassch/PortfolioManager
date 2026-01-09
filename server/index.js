@@ -550,11 +550,21 @@ const normalizeTransferRule = (row) => {
     intervalYears,
     startDate: row.start_date || row.one_time_at,
     endDate: row.end_date,
+    startMilestoneId: row.start_milestone_id,
+    endMilestoneId: row.end_milestone_id,
     externalAmount: Number(row.external_amount || 0),
     externalCurrency: row.external_currency,
     amountType: row.amount_type
   };
 };
+
+const normalizeMilestone = (row) => ({
+  id: row.id,
+  projectionId: row.projection_id,
+  label: row.label,
+  year: Number(row.year),
+  sortOrder: row.sort_order ?? 0
+});
 
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -1134,28 +1144,43 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       projectionsRes = { rows: [created.rows[0]] };
     }
     const projectionRows = projectionsRes.rows;
-    const projectionIds = projectionRows.map(p => p.id);
+  const projectionIds = projectionRows.map(p => p.id);
 
-    // Transfer rules grouped per projection
-    const rulesRes = projectionIds.length > 0
-      ? await pool.query(
-          'SELECT * FROM transfer_rules WHERE projection_id = ANY($1)',
-          [projectionIds]
-        )
-      : { rows: [] };
-    const rulesByProjection = new Map();
-    rulesRes.rows.forEach(rule => {
-      const normalized = normalizeTransferRule(rule);
-      const list = rulesByProjection.get(rule.projection_id) || [];
-      list.push(normalized);
-      rulesByProjection.set(rule.projection_id, list);
-    });
+  // Transfer rules grouped per projection
+  const rulesRes = projectionIds.length > 0
+    ? await pool.query(
+        'SELECT * FROM transfer_rules WHERE projection_id = ANY($1)',
+        [projectionIds]
+      )
+    : { rows: [] };
+  const rulesByProjection = new Map();
+  rulesRes.rows.forEach(rule => {
+    const normalized = normalizeTransferRule(rule);
+    const list = rulesByProjection.get(rule.projection_id) || [];
+    list.push(normalized);
+    rulesByProjection.set(rule.projection_id, list);
+  });
 
-    // Per-projection account overrides
-    const overridesRes = projectionIds.length > 0
-      ? await pool.query(
-          'SELECT * FROM projection_accounts WHERE projection_id = ANY($1)',
-          [projectionIds]
+  // Milestones per projection
+  const milestonesRes = projectionIds.length > 0
+    ? await pool.query(
+        'SELECT * FROM projection_milestones WHERE projection_id = ANY($1) ORDER BY sort_order ASC, year ASC, id ASC',
+        [projectionIds]
+      )
+    : { rows: [] };
+  const milestonesByProjection = new Map();
+  milestonesRes.rows.forEach(row => {
+    const norm = normalizeMilestone(row);
+    const list = milestonesByProjection.get(row.projection_id) || [];
+    list.push(norm);
+    milestonesByProjection.set(row.projection_id, list);
+  });
+
+  // Per-projection account overrides
+  const overridesRes = projectionIds.length > 0
+    ? await pool.query(
+        'SELECT * FROM projection_accounts WHERE projection_id = ANY($1)',
+        [projectionIds]
         )
       : { rows: [] };
     const overridesByProjection = {};
@@ -1208,13 +1233,14 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
         portfolioId: p.portfolio_id,
         name: p.name,
         inflationRate: p.inflation_rate ?? 0,
-        projectionYears: portfolio.projection_years,
-        taxRate: portfolio.tax_rate,
-        createdAt: p.created_at,
-        transferRules: rulesByProjection.get(p.id) || [],
-        accountOverrides: overridesByProjection[p.id] || {}
-      }))
-    });
+      projectionYears: portfolio.projection_years,
+      taxRate: portfolio.tax_rate,
+      createdAt: p.created_at,
+      transferRules: rulesByProjection.get(p.id) || [],
+      accountOverrides: overridesByProjection[p.id] || {},
+      milestones: milestonesByProjection.get(p.id) || []
+    }))
+  });
   } catch (error) {
     console.error('Error fetching portfolio:', error);
     // Ensure CORS headers are on error responses too
@@ -1307,6 +1333,7 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
 
       // Clean dependent tables; will be repopulated
       await client.query('DELETE FROM transfer_rules WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
+      await client.query('DELETE FROM projection_milestones WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM projection_accounts WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM actual_values WHERE account_id IN (SELECT id FROM accounts WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM accounts WHERE portfolio_id = $1', [portfolioId]);
@@ -1395,6 +1422,20 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           );
         }
 
+        // Insert milestones
+        for (const m of proj.milestones || []) {
+          await client.query(
+            `INSERT INTO projection_milestones (projection_id, label, year, sort_order)
+             VALUES ($1, $2, $3, $4)`,
+            [
+              dbProjId,
+              m.label || 'Milestone',
+              Number(m.year) || 0,
+              m.sortOrder != null ? Number(m.sortOrder) : 0
+            ]
+          );
+        }
+
         for (const rule of proj.transferRules || []) {
           const fromAccountId = rule.fromExternal
             ? null
@@ -1412,7 +1453,9 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
               frequency,
               interval_years,
               start_date,
+              start_milestone_id,
               end_date,
+              end_milestone_id,
               one_time_at,
               from_external,
               from_account_id,
@@ -1423,7 +1466,7 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
               external_currency,
               amount_type
             )
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
              RETURNING id`,
             [
               portfolioId,
@@ -1433,7 +1476,9 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
                 ? (rule.intervalYears && Number(rule.intervalYears)) || 1
                 : null,
               rule.startDate || null,
+              rule.startMilestoneId || null,
               rule.frequency === 'one_time' ? null : (rule.endDate || null),
+              rule.endMilestoneId || null,
               rule.frequency === 'one_time' ? (rule.startDate || null) : null,
               rule.fromExternal || false,
               fromAccountId,
