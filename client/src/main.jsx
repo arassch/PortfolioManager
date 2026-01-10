@@ -240,65 +240,44 @@ function AuthScreen({ auth }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-        <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Planner</h1>
-        <p className="text-purple-200 text-center mb-6">
-          {mode === 'login' && 'Sign in to your account'}
-          {mode === 'register' && 'Create an account to get started'}
-          {mode === 'resetRequest' && 'Request a password reset'}
-          {mode === 'resetConfirm' && 'Set a new password'}
-        </p>
-        {mode === 'resetConfirm' ? (
-          <form onSubmit={handleResetConfirm} className="space-y-4">
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">New Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            {(localError || auth.error) && (
-              <div className="text-red-300 text-sm">{localError || auth.error}</div>
-            )}
-            {resetMessage && (
-              <div className="text-green-300 text-sm">{resetMessage}</div>
-            )}
-            <button
-              type="submit"
-              disabled={auth.isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-all"
-            >
-              {auth.isLoading ? 'Working...' : 'Update Password'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            {mode !== 'resetRequest' && (
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        <div className="space-y-6 text-white">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-purple-200/80 mb-2">Portfolio Planner</p>
+            <h1 className="text-3xl md:text-4xl font-bold leading-tight">A simple portfolio and FIRE planning tool.</h1>
+            {/* <p className="text-purple-100/90 mt-3">Model your accounts and projections in one place. See when you might reach FI — and compare projections with real outcomes over time. Deliberately simple.</p> */}
+          </div>
+          <ul className="space-y-3 text-purple-50/90">
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>Model your accounts and projections in one place.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>See when you might reach FI — and compare projections with real outcomes over time.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>Deliberately simple. No bloat, just clear decisions.</span>
+            </li>
+          </ul>
+          <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20 max-w-xl">
+            <img src="/hero.gif" alt="Product preview" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        <div className="w-full max-w-md lg:ml-auto bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Planner</h2>
+          <p className="text-purple-200 text-center mb-6">
+            {mode === 'login' && 'Sign in to your account'}
+            {mode === 'register' && 'Create an account to get started'}
+            {mode === 'resetRequest' && 'Request a password reset'}
+            {mode === 'resetConfirm' && 'Set a new password'}
+          </p>
+          {mode === 'resetConfirm' ? (
+            <form onSubmit={handleResetConfirm} className="space-y-4">
               <div>
-                <label className="block text-sm text-purple-100 mb-1">Password</label>
+                <label className="block text-sm text-purple-100 mb-1">New Password</label>
                 <input
                   type="password"
                   value={password}
@@ -307,87 +286,135 @@ function AuthScreen({ auth }) {
                   required
                 />
               </div>
-            )}
+              <div>
+                <label className="block text-sm text-purple-100 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  required
+                />
+              </div>
+              {(localError || auth.error) && (
+                <div className="text-red-300 text-sm">{localError || auth.error}</div>
+              )}
+              {resetMessage && (
+                <div className="text-green-300 text-sm">{resetMessage}</div>
+              )}
+              <button
+                type="submit"
+                disabled={auth.isLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-all"
+              >
+                {auth.isLoading ? 'Working...' : 'Update Password'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-purple-100 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  required
+                />
+              </div>
+              {mode !== 'resetRequest' && (
+                <div>
+                  <label className="block text-sm text-purple-100 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    required
+                  />
+                </div>
+              )}
 
-            {(localError || auth.error) && (
-              <div className="text-red-300 text-sm">{localError || auth.error}</div>
-            )}
-            {resetMessage && (
-              <div className="text-green-300 text-sm">{resetMessage}</div>
-            )}
-            {mode === 'login' && showResend && (
-              <div className="mt-2 text-xs text-purple-100 text-center">
-                {(localError || auth.error) && (localError?.toLowerCase().includes('verify') || auth.error?.toLowerCase().includes('verify')) && (
-                  <div className="text-red-200 mb-1">Email not verified.</div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  className="underline"
-                >
-                  Resend verification email
+              {(localError || auth.error) && (
+                <div className="text-red-300 text-sm">{localError || auth.error}</div>
+              )}
+              {resetMessage && (
+                <div className="text-green-300 text-sm">{resetMessage}</div>
+              )}
+              {mode === 'login' && showResend && (
+                <div className="mt-2 text-xs text-purple-100 text-center">
+                  {(localError || auth.error) && (localError?.toLowerCase().includes('verify') || auth.error?.toLowerCase().includes('verify')) && (
+                    <div className="text-red-200 mb-1">Email not verified.</div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="underline"
+                  >
+                    Resend verification email
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={auth.isLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
+              >
+                {auth.isLoading
+                  ? 'Working...'
+                  : mode === 'login'
+                    ? 'Sign In'
+                    : mode === 'register'
+                      ? 'Create Account'
+                      : 'Send Reset Email'}
+              </button>
+
+              {showGoogleButton && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="h-px bg-white/20 flex-1" />
+                    <span className="text-xs text-purple-200">or</span>
+                    <div className="h-px bg-white/20 flex-1" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div ref={googleButtonRef} />
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
+
+          <div className="mt-4 text-center text-sm text-purple-100">
+            {mode === 'login' ? (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('register')}>
+                  Need an account? Sign up
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : mode === 'register' ? (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('login')}>
+                  Already have an account? Sign in
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('login')}>
+                  Back to sign in
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('register')}>
+                  Need an account? Sign up
                 </button>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={auth.isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
-            >
-              {auth.isLoading
-                ? 'Working...'
-                : mode === 'login'
-                  ? 'Sign In'
-                  : mode === 'register'
-                    ? 'Create Account'
-                    : 'Send Reset Email'}
-            </button>
-
-            {showGoogleButton && (
-              <div className="pt-2">
-                <div className="flex items-center gap-3 my-2">
-                  <div className="h-px bg-white/20 flex-1" />
-                  <span className="text-xs text-purple-200">or</span>
-                  <div className="h-px bg-white/20 flex-1" />
-                </div>
-                <div className="flex justify-center">
-                  <div ref={googleButtonRef} />
-                </div>
-              </div>
-            )}
-          </form>
-        )}
-
-        <div className="mt-4 text-center text-sm text-purple-100">
-          {mode === 'login' ? (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('register')}>
-                Need an account? Sign up
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
-                Forgot password?
-              </button>
-            </div>
-          ) : mode === 'register' ? (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('login')}>
-                Already have an account? Sign in
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
-                Forgot password?
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('login')}>
-                Back to sign in
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('register')}>
-                Need an account? Sign up
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
