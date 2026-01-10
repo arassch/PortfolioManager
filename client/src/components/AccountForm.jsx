@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CURRENCIES, ACCOUNT_TYPES } from '../constants/currencies';
 
-export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = null }) {
+export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = null, allowReturnRateEdit = true }) {
   const [account, setAccount] = useState(initialData || {
     name: '',
     type: 'investment',
@@ -115,8 +115,12 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
             step="0.1"
             placeholder="Interest Rate (%)"
             value={account.returnRate || ''}
-            onChange={(e) => handleChange('returnRate', e.target.value)}
-            className="px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-purple-400"
+            onChange={(e) => allowReturnRateEdit && handleChange('returnRate', e.target.value)}
+            disabled={!allowReturnRateEdit}
+            title={!allowReturnRateEdit ? 'Edit return rate inside projections' : undefined}
+            className={`px-4 py-2 rounded-lg border text-white placeholder-white/50 focus:outline-none focus:border-purple-400 ${
+              allowReturnRateEdit ? 'bg-white/5 border-white/20' : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+            }`}
           />
         ) : (
           <input
@@ -124,11 +128,18 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
             step="0.1"
             placeholder="Expected Annual Return (%)"
             value={account.returnRate || ''}
-            onChange={(e) => handleChange('returnRate', e.target.value)}
-            className="px-4 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-purple-400"
+            onChange={(e) => allowReturnRateEdit && handleChange('returnRate', e.target.value)}
+            disabled={!allowReturnRateEdit}
+            title={!allowReturnRateEdit ? 'Edit return rate inside projections' : undefined}
+            className={`px-4 py-2 rounded-lg border text-white placeholder-white/50 focus:outline-none focus:border-purple-400 ${
+              allowReturnRateEdit ? 'bg-white/5 border-white/20' : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+            }`}
           />
         )}
       </div>
+      {!allowReturnRateEdit && (
+        <p className="text-xs text-purple-200/80 mb-2">Return rate can be edited per projection in the Projections view.</p>
+      )}
       <div className="flex items-center gap-4 mb-4">
         <label className="flex items-center gap-2 text-white cursor-pointer">
           <input

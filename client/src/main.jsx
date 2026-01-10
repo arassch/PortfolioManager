@@ -958,6 +958,39 @@ function PortfolioManager({ auth }) {
     }
   };
 
+  const handleEditAccountForm = async (accountData) => {
+    try {
+      const updatedAccounts = portfolio.accounts.map((acc) =>
+        String(acc.id) === String(accountData.id)
+          ? new Account({ ...acc.toJSON(), ...accountData })
+          : acc
+      );
+
+      let updatedProjections = portfolio.projections;
+      if (typeof accountData.returnRate === 'number' && targetProjectionId) {
+        updatedProjections = portfolio.projections.map((proj) => {
+          if (String(proj.id) !== String(targetProjectionId)) return proj;
+          const overrides = { ...(proj.accountOverrides || {}) };
+          const current = overrides[accountData.id] || {};
+          overrides[accountData.id] = { ...current, returnRate: accountData.returnRate };
+          return new Projection({ ...proj.toJSON(), accountOverrides: overrides });
+        });
+      }
+
+      const updatedPortfolio = new Portfolio({
+        ...portfolio.toJSON(),
+        accounts: updatedAccounts,
+        projections: updatedProjections.map((p) => p.toJSON()),
+        activeProjectionId
+      });
+      updatePortfolio(updatedPortfolio);
+      await savePortfolio(updatedPortfolio, { skipReload: true });
+      setEditingAccountId(null);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
   const handleSaveAccountEdit = async (accountId, field, value) => {
     const isProjectionField = field === 'returnRate';
     const updatedAccounts = isProjectionField
@@ -1624,11 +1657,22 @@ function PortfolioManager({ auth }) {
 
               <div className="space-y-3">
                 {portfolio.accounts.map(account => (
+                  editingAccountId === account.id ? (
+                    <div key={account.id} className="bg-white/5 rounded-lg p-4 border border-white/20">
+                      <AccountForm
+                        initialData={account}
+                        baseCurrency={portfolio.baseCurrency}
+                        allowReturnRateEdit={false}
+                        onSubmit={(data) => handleEditAccountForm({ ...data, id: account.id })}
+                        onCancel={() => setEditingAccountId(null)}
+                      />
+                    </div>
+                  ) : (
                     <AccountItem
                       key={account.id}
                       account={account}
                       displayBalance={latestAccountValues[account.id]}
-                      isEditing={editingAccountId === account.id}
+                      isEditing={false}
                       onStartEdit={() => setEditingAccountId(account.id)}
                       onDelete={() => handleDeleteAccount(account.id)}
                       onFinishEdit={() => setEditingAccountId(null)}
@@ -1642,6 +1686,7 @@ function PortfolioManager({ auth }) {
                       enableProjectionFields={allowProjectionEditing}
                       showReturnRate={allowProjectionEditing}
                     />
+                  )
                 ))}
               </div>
 
