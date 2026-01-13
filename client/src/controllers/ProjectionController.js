@@ -202,7 +202,7 @@ class ProjectionController {
         if (!isSelected) return;
 
         const value = accountBalances[account.id];
-        const effectiveTreatment = account.taxable ? 'taxable' : 'roth';
+        const effectiveTreatment = account.taxTreatment ?? 'roth';
         const afterTax = this.calculateAfterTaxValue(
           value,
           accountBasis[account.id],
@@ -227,7 +227,7 @@ class ProjectionController {
         if (yearIndex === 0) {
           yearData[`account_${account.id}_observed`] = projectedRounded;
         }
-        if (yearIndex > 0 && account.taxable) {
+        if (yearIndex > 0 && effectiveTreatment !== 'roth') {
           yearData[`account_${account.id}_net`] = afterTaxRounded;
         }
         yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
@@ -340,7 +340,7 @@ class ProjectionController {
       basisMoved = fromBasis * proportion;
       const gainPortion = Math.max(availableAmount - basisMoved, 0);
       const fromAccount = portfolio.getAccountById(rule.fromAccountId);
-      const taxableRate = fromAccount?.taxable ? (taxRate / 100) : 0;
+      const taxableRate = fromAccount?.taxTreatment === 'taxable' ? (taxRate / 100) : 0;
       const tax = gainPortion * taxableRate;
       netOut = Math.max(availableAmount - tax, 0);
       accountBalances[rule.fromAccountId] -= (netOut + tax);

@@ -318,7 +318,7 @@ export function ChartSection({
       } else {
         acc.invested += value;
       }
-      if (account.taxable) {
+      if (account.taxTreatment !== 'roth') {
         acc.taxed += value;
       } else {
         acc.nonTaxed += value;
@@ -356,7 +356,7 @@ export function ChartSection({
       } else {
         invested += val;
       }
-      if (acc.taxable) taxed += val; else nonTaxed += val;
+      if (acc.taxTreatment !== 'roth') taxed += val; else nonTaxed += val;
     });
     return { invested, cash, taxed, nonTaxed };
   };

@@ -2,13 +2,21 @@ import React, { useState } from 'react';
 import { CURRENCIES, ACCOUNT_TYPES } from '../constants/currencies';
 
 export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = null, allowReturnRateEdit = true }) {
-  const [account, setAccount] = useState(initialData || {
-    name: '',
-    type: 'investment',
-    balance: '',
-    currency: baseCurrency,
-    returnRate: '',
-    taxable: false
+  const [account, setAccount] = useState(() => {
+    if (initialData) {
+      return {
+        ...initialData,
+        taxTreatment: initialData.taxTreatment ?? (initialData.taxable ? 'taxable' : 'roth')
+      };
+    }
+    return {
+      name: '',
+      type: 'investment',
+      balance: '',
+      currency: baseCurrency,
+      returnRate: '',
+      taxTreatment: 'roth'
+    };
   });
 
   const [errors, setErrors] = useState([]);
@@ -141,14 +149,20 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
         <p className="text-xs text-purple-200/80 mb-2">Return rate can be edited per projection in the Projections view.</p>
       )}
       <div className="flex items-center gap-4 mb-4">
-        <label className="flex items-center gap-2 text-white cursor-pointer">
-          <input
-            type="checkbox"
-            checked={account.taxable}
-            onChange={(e) => handleChange('taxable', e.target.checked)}
-            className="w-4 h-4 rounded"
-          />
-          Taxable Account
+        <label className="flex items-center gap-2 text-white">
+          <span>Tax Treatment</span>
+          <select
+            value={account.taxTreatment || 'roth'}
+            onChange={(e) => {
+              const next = e.target.value;
+              handleChange('taxTreatment', next);
+            }}
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+          >
+            <option value="taxable">Taxed (Gains)</option>
+            <option value="deferred">Taxed (Full)</option>
+            <option value="roth">Tax Free</option>
+          </select>
         </label>
       </div>
       <div className="flex gap-2">

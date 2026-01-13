@@ -97,7 +97,7 @@ export function ProjectionComparisonSection({
       } else {
         acc.invested += value;
       }
-      if (account.taxable) {
+      if (account.taxTreatment !== 'roth') {
         acc.taxed += value;
       } else {
         acc.nonTaxed += value;

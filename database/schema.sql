@@ -78,7 +78,7 @@ CREATE TABLE accounts (
   balance DECIMAL(15,2) NOT NULL,
   currency VARCHAR(3) DEFAULT 'USD',
   return_rate DECIMAL(5,2),
-  taxable BOOLEAN DEFAULT false,
+  tax_treatment VARCHAR(20) DEFAULT 'roth',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

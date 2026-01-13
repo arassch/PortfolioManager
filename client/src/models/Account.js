@@ -9,9 +9,8 @@ export class Account {
     this.balance = parseFloat(data.balance) || 0;
     this.currency = data.currency || 'USD';
     this.returnRate = parseFloat(data.returnRate ?? 0) || 0;
-    this.taxable = data.taxable || false;
     // Tax treatment/basis for after-tax views
-    this.taxTreatment = data.taxTreatment ?? (this.taxable ? 'taxable' : 'roth'); // 'taxable' | 'deferred' | 'roth'
+    this.taxTreatment = data.taxTreatment ?? (data.taxable ? 'taxable' : 'roth'); // 'taxable' | 'deferred' | 'roth'
     this.costBasis = Number.isFinite(parseFloat(data.costBasis)) ? parseFloat(data.costBasis) : this.balance; // starting principal/basis
   }
 
@@ -31,7 +30,6 @@ export class Account {
       balance: this.balance,
       currency: this.currency,
       returnRate: this.returnRate,
-      taxable: this.taxable,
       taxTreatment: this.taxTreatment,
       costBasis: this.costBasis
     };

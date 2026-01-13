@@ -528,7 +528,7 @@ const normalizeAccount = (row) => ({
   balance: Number(row.balance),
   currency: row.currency,
   returnRate: Number(row.return_rate || 0),
-  taxable: row.taxable,
+  taxTreatment: row.tax_treatment ?? 'roth',
 });
 
 const normalizeTransferRule = (row) => {
@@ -1324,13 +1324,14 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       const accountIdMap = new Map();
       for (const account of accounts) {
         const accountRate = account.returnRate ?? 0;
+        const taxTreatment = account.taxTreatment ?? 'roth';
         const accountRes = await client.query(
-          `INSERT INTO accounts (portfolio_id, name, type, balance, currency, return_rate, taxable)
+          `INSERT INTO accounts (portfolio_id, name, type, balance, currency, return_rate, tax_treatment)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING id`,
           [
             portfolioId, account.name, account.type, account.balance,
-            account.currency, accountRate, account.taxable
+            account.currency, accountRate, taxTreatment
           ]
         );
         // Map old temporary ID to new database ID
