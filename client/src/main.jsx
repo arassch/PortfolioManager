@@ -1022,6 +1022,7 @@ function PortfolioManager({ auth }) {
   };
 
   const handleDeleteAccount = async (accountId) => {
+    if (!window.confirm('Delete this account? This cannot be undone.')) return;
     const accounts = portfolio.accounts.filter(acc => String(acc.id) !== String(accountId));
     const cleanedActuals = { ...portfolio.actualValues };
     delete cleanedActuals[accountId];
