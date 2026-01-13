@@ -779,8 +779,42 @@ function PortfolioManager({ auth }) {
       series.data.forEach(point => years.add(point.year));
     });
     const accountIds = (portfolio.accounts || []).map(acc => acc.id);
+    const accountMap = (portfolio.accounts || []).reduce((map, acc) => {
+      map[acc.id] = acc;
+      return map;
+    }, {});
     const refSeries = projectionSeries[0];
     const earliestYear = refSeries?.data?.[0]?.year;
+    const hasExplicitActuals = Object.values(portfolio.actualValues || {}).some(
+      (entries) => entries && Object.keys(entries).length > 0
+    );
+    const latestActualsByYear = {};
+    if (hasExplicitActuals) {
+      accountIds.forEach((id) => {
+        const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
+        if (selected === false) return;
+        const account = accountMap[id];
+        const entries = (portfolio.actualValues || {})[id] || {};
+        Object.entries(entries).forEach(([key, val]) => {
+          const keyStr = String(key);
+          const match = keyStr.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+          if (!match) return;
+          const year = Number(match[1]);
+          if (!Number.isFinite(year)) return;
+          const month = match[2] ? Number(match[2]) - 1 : 0;
+          const day = match[3] ? Number(match[3]) : 1;
+          const score = Date.UTC(year, Math.max(0, month), Math.max(1, day));
+          const baseVal = account
+            ? CurrencyService.convertToBase(val, account.currency, portfolio.baseCurrency)
+            : Number(val);
+          if (!latestActualsByYear[year]) latestActualsByYear[year] = {};
+          const current = latestActualsByYear[year][id];
+          if (!current || score >= current.score) {
+            latestActualsByYear[year][id] = { score, value: baseVal };
+          }
+        });
+      });
+    }
 
     return Array.from(years)
       .sort((a, b) => a - b)
@@ -794,36 +828,38 @@ function PortfolioManager({ auth }) {
           row[`projection_${series.id}`] = found.projected;
         });
 
-        // Actuals: only initial account value (earliest year) and explicit actual datapoints; no projection fallback
-        if (refSeries) {
-          const refPoint = refSeries.data.find(p => p.year === year);
-          if (refPoint) {
-            let sum = 0;
-            let hasAny = false;
-            accountIds.forEach((id) => {
-              const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
-              if (selected === false) return;
-              const acctActual = refPoint[`account_${id}_actual`];
-              if (acctActual != null) {
-                sum += acctActual;
+        if (hasExplicitActuals) {
+          let sum = 0;
+          let hasAny = false;
+          accountIds.forEach((id) => {
+            const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
+            if (selected === false) return;
+            const actualEntry = latestActualsByYear[year]?.[id];
+            if (actualEntry) {
+              sum += actualEntry.value;
+              hasAny = true;
+            } else if (year === earliestYear) {
+              const account = accountMap[id];
+              if (account) {
+                sum += CurrencyService.convertToBase(account.balance, account.currency, portfolio.baseCurrency);
                 hasAny = true;
-              } else if (year === earliestYear) {
-                const acctInitial = refPoint[`account_${id}`];
-                if (acctInitial != null) {
-                  sum += acctInitial;
-                  hasAny = true;
-                }
               }
-            });
-            if (hasAny) {
-              row.actual = Math.round(sum);
             }
+          });
+          if (hasAny) {
+            row.actual = Math.round(sum);
           }
         }
 
         return row;
       });
-  }, [projectionSeries, portfolio.accounts, selectedAccounts]);
+  }, [
+    projectionSeries,
+    portfolio.accounts,
+    portfolio.actualValues,
+    selectedAccounts,
+    portfolio.baseCurrency
+  ]);
 
   if (subscriptionRequired) {
     return (
