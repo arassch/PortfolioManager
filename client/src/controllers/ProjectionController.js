@@ -224,6 +224,9 @@ class ProjectionController {
 
         const projectedRounded = Math.round(value);
         yearData[`account_${account.id}`] = projectedRounded;
+        if (yearIndex === 0) {
+          yearData[`account_${account.id}_observed`] = projectedRounded;
+        }
         if (yearIndex > 0 && account.taxable) {
           yearData[`account_${account.id}_net`] = afterTaxRounded;
         }

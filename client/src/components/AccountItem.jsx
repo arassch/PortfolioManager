@@ -14,14 +14,13 @@ export function AccountItem({
   onAddActualValue,
   onDeleteActualValue,
   actualValues = {},
-  showActualValueInput,
-  onToggleActualValueInput,
   enableProjectionFields = true,
   showReturnRate = true
 }) {
   const [dateVal, setDateVal] = useState('');
   const [value, setValue] = useState('');
   const [balanceDraft, setBalanceDraft] = useState(account.balance);
+  const [showActualPanel, setShowActualPanel] = useState(false);
 
   useEffect(() => {
     setBalanceDraft(account.balance);
@@ -33,7 +32,6 @@ export function AccountItem({
       onAddActualValue(account.id, dateVal, actualValue);
       setDateVal('');
       setValue('');
-      onToggleActualValueInput?.();
     }
   };
   const currentYear = new Date().getFullYear();
@@ -176,14 +174,32 @@ export function AccountItem({
             )}
             <div>
               <button
-                onClick={() => onToggleActualValueInput?.()}
+                onClick={() => setShowActualPanel((prev) => !prev)}
                 className="text-sm text-purple-300 hover:text-purple-200 underline"
               >
-                Edit Actual Values
+                {showActualPanel ? 'Hide Actual Values' : 'Show Actual Values'}
               </button>
             </div>
           </div>
-          {showActualValueInput && (
+          {showActualPanel && actualEntries.length > 0 && (
+            <div className="mt-3 text-sm text-purple-100 space-y-1">
+              {actualEntries.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1"
+                >
+                  <span>{entry.label}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
+                  <button
+                    onClick={() => onDeleteActualValue?.(account.id, entry.key)}
+                    className="text-red-300 hover:text-red-200 text-xs underline"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showActualPanel && (
             <div className="mt-3 space-y-2">
               <div className="flex gap-2 items-center">
                 <input
@@ -208,21 +224,6 @@ export function AccountItem({
                   Save
                 </button>
               </div>
-              {actualEntries.length > 0 && (
-                <div className="text-sm text-purple-100 space-y-1">
-                  {actualEntries.map((entry) => (
-                    <div key={entry.key} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
-                      <span>{entry.label}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
-                      <button
-                        onClick={() => onDeleteActualValue?.(account.id, entry.key)}
-                        className="text-red-300 hover:text-red-200 text-xs underline"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>

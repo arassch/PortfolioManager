@@ -448,7 +448,6 @@ function PortfolioManager({ auth }) {
   const [projectionYearsDraft, setProjectionYearsDraft] = useState(portfolio.projectionYears ?? 10);
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
-  const [showActualInput, setShowActualInput] = useState(null);
   const ONBOARDING_VERSION = 1;
   const [onboardingState, setOnboardingState] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
@@ -1682,8 +1681,6 @@ function PortfolioManager({ auth }) {
                       onAddActualValue={handleAddActualValue}
                       onDeleteActualValue={handleDeleteActualValue}
                       actualValues={portfolio.actualValues[account.id] || {}}
-                      showActualValueInput={showActualInput === account.id}
-                      onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
                       enableProjectionFields={allowProjectionEditing}
                       showReturnRate={allowProjectionEditing}
                     />
