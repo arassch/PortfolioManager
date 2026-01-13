@@ -754,16 +754,17 @@ function PortfolioManager({ auth }) {
   }, [projectionSeries, fiTarget, getAgeAtYear]);
 
   const latestAccountValues = useMemo(() => {
-    const currentYear = new Date().getFullYear();
     const values = {};
     (portfolio.accounts || []).forEach((acc) => {
       const entries = portfolio.actualValues?.[acc.id] || {};
       let latestYear = -Infinity;
       let latestVal = null;
       Object.entries(entries).forEach(([key, val]) => {
-        const numKey = Number(key);
-        const absYear = numKey >= 1900 ? numKey : currentYear + numKey;
-        if (!Number.isNaN(absYear) && absYear >= latestYear) {
+        const parsed = new Date(key);
+        const absYear = !Number.isNaN(parsed.getTime())
+          ? parsed.getUTCFullYear()
+          : null;
+        if (Number.isFinite(absYear) && absYear >= latestYear) {
           latestYear = absYear;
           latestVal = val;
         }
@@ -1044,12 +1045,12 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
-  const handleAddActualValue = async (accountId, year, value) => {
+  const handleAddActualValue = async (accountId, key, value) => {
     const updatedActualValues = {
       ...portfolio.actualValues,
       [accountId]: {
         ...(portfolio.actualValues[accountId] || {}),
-        [year]: value
+        [key]: value
       }
     };
     const updatedPortfolio = new Portfolio({
@@ -1060,9 +1061,9 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
-  const handleDeleteActualValue = async (accountId, year) => {
+  const handleDeleteActualValue = async (accountId, key) => {
     const accountActuals = { ...(portfolio.actualValues[accountId] || {}) };
-    delete accountActuals[year];
+    delete accountActuals[key];
     const updatedActualValues = { ...portfolio.actualValues };
     if (Object.keys(accountActuals).length === 0) {
       delete updatedActualValues[accountId];

@@ -19,7 +19,7 @@ export function AccountItem({
   enableProjectionFields = true,
   showReturnRate = true
 }) {
-  const [year, setYear] = useState('');
+  const [dateVal, setDateVal] = useState('');
   const [value, setValue] = useState('');
   const [balanceDraft, setBalanceDraft] = useState(account.balance);
 
@@ -28,11 +28,10 @@ export function AccountItem({
   }, [account.balance, isEditing]);
 
   const handleAddActual = () => {
-    const yearInt = parseInt(year, 10);
     const actualValue = parseFloat(String(value).replace(/,/g, ''));
-    if (!isNaN(yearInt) && !isNaN(actualValue)) {
-      onAddActualValue(account.id, yearInt, actualValue);
-      setYear('');
+    if (!isNaN(actualValue) && dateVal) {
+      onAddActualValue(account.id, dateVal, actualValue);
+      setDateVal('');
       setValue('');
       onToggleActualValueInput?.();
     }
@@ -40,11 +39,20 @@ export function AccountItem({
   const currentYear = new Date().getFullYear();
   const actualEntries = Object.entries(actualValues || {})
     .map(([key, val]) => {
-      const numKey = Number(key);
-      const yearValue = numKey >= 1900 ? numKey : currentYear + numKey; // support legacy offsets
-      return { key: numKey, value: val, year: yearValue };
+      const keyString = typeof key === 'string'
+        ? key
+        : key instanceof Date
+          ? key.toISOString().slice(0, 10)
+          : String(key);
+      const match = keyString.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+      const hasDate = !!match;
+      const yearValue = hasDate ? Number(match[1]) : Number(key);
+      const label = hasDate
+        ? `${match[1]}-${match[2]}${match[3] ? `-${match[3]}` : ''}`
+        : keyString;
+      return { key, value: val, year: Number.isFinite(yearValue) ? yearValue : currentYear, label };
     })
-    .sort((a, b) => a.year - b.year);
+    .sort((a, b) => a.year - b.year || a.label.localeCompare(b.label));
 
   const returnRate = account.returnRate;
   const rateLabel = account.type === 'cash' ? 'Interest' : 'Return Rate';
@@ -177,13 +185,13 @@ export function AccountItem({
           </div>
           {showActualValueInput && (
             <div className="mt-3 space-y-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input
-                  type="number"
-                  placeholder="Year"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                  type="date"
+                  placeholder="Date"
+                  value={dateVal}
+                  onChange={(e) => setDateVal(e.target.value)}
+                  className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
                 />
                 <input
                   type="text"
@@ -203,8 +211,8 @@ export function AccountItem({
               {actualEntries.length > 0 && (
                 <div className="text-sm text-purple-100 space-y-1">
                   {actualEntries.map((entry) => (
-                    <div key={entry.year} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
-                      <span>{entry.year}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
+                    <div key={entry.key} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
+                      <span>{entry.label}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
                       <button
                         onClick={() => onDeleteActualValue?.(account.id, entry.key)}
                         className="text-red-300 hover:text-red-200 text-xs underline"

@@ -1181,7 +1181,16 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       if (!actualValues[row.account_id]) {
         actualValues[row.account_id] = {};
       }
-      actualValues[row.account_id][row.year_index] = Number(row.value);
+      if (row.observed_at) {
+        const key = typeof row.observed_at === 'string'
+          ? row.observed_at.slice(0, 10)
+          : [
+              row.observed_at.getFullYear(),
+              String(row.observed_at.getMonth() + 1).padStart(2, '0'),
+              String(row.observed_at.getDate()).padStart(2, '0')
+            ].join('-');
+        actualValues[row.account_id][key] = Number(row.value);
+      }
     });
   
     res.json({
@@ -1448,20 +1457,33 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         }
       }
 
-      // Upsert actual values against the remapped account IDs
-      for (const [accountId, valuesByYear] of Object.entries(actualValues)) {
+      // Upsert actual values against the remapped account IDs (date-based)
+      for (const [accountId, valuesByDate] of Object.entries(actualValues)) {
         const dbAccountId = accountIdMap.get(String(accountId));
         if (!dbAccountId) {
           throw new Error(`Unknown account id ${accountId} for actual values`);
         }
 
-        for (const [yearIndex, value] of Object.entries(valuesByYear || {})) {
+        for (const [key, value] of Object.entries(valuesByDate || {})) {
+          let observedAt = null;
+          const keyStr = String(key);
+          const dateMatch = keyStr.match(/^(\d{4})-(\d{2})(-(\d{2}))?$/);
+          if (dateMatch) {
+            // Use the provided string directly to avoid timezone shifts; if day missing, default to 01
+            observedAt = dateMatch[3] ? keyStr : `${dateMatch[1]}-${dateMatch[2]}-01`;
+          } else {
+            // fallback: try to parse as year and store Jan 1
+            const legacyYear = Number(key);
+            if (!Number.isFinite(legacyYear)) continue;
+            observedAt = `${legacyYear}-01-01`;
+          }
+          if (!observedAt) continue;
           await client.query(
-            `INSERT INTO actual_values (account_id, year_index, value)
+            `INSERT INTO actual_values (account_id, observed_at, value)
              VALUES ($1, $2, $3)
-             ON CONFLICT (account_id, year_index)
+             ON CONFLICT (account_id, observed_at)
              DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
-            [dbAccountId, Number(yearIndex), value]
+            [dbAccountId, observedAt, value]
           );
         }
       }

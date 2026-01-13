@@ -116,11 +116,11 @@ CREATE TABLE transfer_rules (
 CREATE TABLE actual_values (
   id SERIAL PRIMARY KEY,
   account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  year_index INTEGER NOT NULL,
+  observed_at DATE,
   value DECIMAL(15,2) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(account_id, year_index)
+  UNIQUE(account_id, observed_at)
 );
 
 CREATE INDEX idx_portfolios_user_id ON portfolios(user_id);
