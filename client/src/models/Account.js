@@ -12,6 +12,8 @@ export class Account {
     // Tax treatment/basis for after-tax views
     this.taxTreatment = data.taxTreatment ?? (data.taxable ? 'taxable' : 'roth'); // 'taxable' | 'deferred' | 'roth'
     this.costBasis = Number.isFinite(parseFloat(data.costBasis)) ? parseFloat(data.costBasis) : this.balance; // starting principal/basis
+    this.createdAt = data.createdAt;
+    this.updatedAt = data.updatedAt;
   }
 
   isValid() {
@@ -31,7 +33,9 @@ export class Account {
       currency: this.currency,
       returnRate: this.returnRate,
       taxTreatment: this.taxTreatment,
-      costBasis: this.costBasis
+      costBasis: this.costBasis,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
     };
   }
 }
