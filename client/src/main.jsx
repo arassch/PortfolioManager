@@ -473,9 +473,44 @@ function PortfolioManager({ auth }) {
   );
   const activeProjection = portfolio.getActiveProjection();
   const activeProjectionId = activeProjection?.id;
+  const previewMilestones = useMemo(() => {
+    if (!activeProjection) return [];
+    if (!milestoneEditId) return activeProjection.milestones || [];
+    const label = milestoneEditDraft.label?.trim() || 'Milestone';
+    const yearNum = Number(milestoneEditDraft.year) || new Date().getFullYear();
+    return (activeProjection.milestones || []).map((m) =>
+      m.id === milestoneEditId ? { ...m, label, year: yearNum } : m
+    );
+  }, [activeProjection, milestoneEditId, milestoneEditDraft]);
+  const previewTransferRules = useMemo(() => {
+    if (!activeProjection) return [];
+    if (!milestoneEditId) return activeProjection.transferRules || [];
+    const oldMilestone = (activeProjection.milestones || []).find((m) => m.id === milestoneEditId);
+    const oldYear = oldMilestone ? Number(oldMilestone.year) : null;
+    const yearNum = Number(milestoneEditDraft.year) || new Date().getFullYear();
+    return (activeProjection.transferRules || []).map((rule) => {
+      const nextRule = { ...rule };
+      if (rule.startMilestoneId && rule.startMilestoneId === milestoneEditId) {
+        nextRule.startDate = `${yearNum}-01-01`;
+      } else if (oldYear && rule.startDate === `${oldYear}-01-01`) {
+        nextRule.startDate = `${yearNum}-01-01`;
+      }
+      if (rule.endMilestoneId && rule.endMilestoneId === milestoneEditId) {
+        nextRule.endDate = `${yearNum}-01-01`;
+      } else if (oldYear && rule.endDate === `${oldYear}-01-01`) {
+        nextRule.endDate = `${yearNum}-01-01`;
+      }
+      return nextRule;
+    });
+  }, [activeProjection, milestoneEditId, milestoneEditDraft]);
+  const visibleMilestones = milestoneEditId ? previewMilestones : (activeProjection?.milestones || []);
   const projectionView = useMemo(
-    () => portfolio.buildProjectionView(activeProjectionId),
-    [portfolio, activeProjectionId]
+    () => {
+      const view = portfolio.buildProjectionView(activeProjectionId);
+      if (!milestoneEditId) return view;
+      return { ...view, transferRules: previewTransferRules };
+    },
+    [portfolio, activeProjectionId, milestoneEditId, previewTransferRules]
   );
 
   const tourSteps = useMemo(() => ([
@@ -1890,7 +1925,7 @@ function PortfolioManager({ auth }) {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mb-3">
-                {(activeProjection.milestones || []).sort((a,b) => (a.sortOrder ?? a.year) - (b.sortOrder ?? b.year) || a.year - b.year).map((m) => {
+                {(visibleMilestones || []).sort((a,b) => (a.sortOrder ?? a.year) - (b.sortOrder ?? b.year) || a.year - b.year).map((m) => {
                   const age = getAgeAtYear(m.year);
                   return (
                     <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white text-sm flex-wrap">
@@ -1948,7 +1983,7 @@ function PortfolioManager({ auth }) {
                     </div>
                   );
                 })}
-                {(!activeProjection.milestones || activeProjection.milestones.length === 0) && (
+                {(!visibleMilestones || visibleMilestones.length === 0) && (
                   <div className="text-sm text-purple-200">No milestones yet.</div>
                 )}
               </div>
@@ -2083,7 +2118,7 @@ function PortfolioManager({ auth }) {
                       }}
                       accounts={portfolio.accounts}
                       baseCurrency={portfolio.baseCurrency}
-                      milestones={activeProjection?.milestones || []}
+                      milestones={visibleMilestones}
                       isEdit={!!editingRuleId}
                     />
                   /* </div> */
@@ -2105,6 +2140,7 @@ function PortfolioManager({ auth }) {
                           onDelete={() => handleDeleteRule(rule.id)}
                           accounts={portfolio.accounts}
                           baseCurrency={portfolio.baseCurrency}
+                          milestones={visibleMilestones}
                         />
                       </div>
                     );

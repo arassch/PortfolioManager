@@ -2,7 +2,7 @@ import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import CurrencyService from '../services/CurrencyService';
 
-export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
+export function TransferRuleItem({ rule, accounts, milestones = [], onEdit, onDelete }) {
   const fromAccount = accounts.find(acc => acc.id == rule.fromAccountId);
   const toAccount = accounts.find(acc => acc.id == rule.toAccountId);
   const isExternalOutcome = (rule.toExternal === true || rule.direction === 'output') && !toAccount;
@@ -15,8 +15,12 @@ export function TransferRuleItem({ rule, accounts, onEdit, onDelete }) {
         rule.fromExternal ? rule.externalCurrency : (fromAccount?.currency || rule.externalCurrency || 'USD')
       );
   const dateLabel = (() => {
-    const start = rule.startDate ? new Date(rule.startDate).toISOString().slice(0,10) : null;
-    const end = rule.endDate ? new Date(rule.endDate).toISOString().slice(0,10) : null;
+    const startMilestone = milestones.find(m => m.id == rule.startMilestoneId);
+    const endMilestone = milestones.find(m => m.id == rule.endMilestoneId);
+    const start = startMilestone?.label
+      || (rule.startDate ? new Date(rule.startDate).toISOString().slice(0,10) : null);
+    const end = endMilestone?.label
+      || (rule.endDate ? new Date(rule.endDate).toISOString().slice(0,10) : null);
     if (rule.frequency === 'one_time' && start) return `(${start})`;
     if (start && end) return `(${start} → ${end})`;
     if (start) return `(${start} → ∞)`;

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bookmark } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bookmark, Calendar } from 'lucide-react';
 import { FREQUENCIES, AMOUNT_TYPES, CURRENCIES } from '../constants/currencies';
 
 const DEFAULT_RULE = {
@@ -57,16 +57,27 @@ export function TransferRuleForm({
     };
   };
   const [formRule, setFormRule] = useState(buildInitial(rule));
+  const formRuleRef = useRef(formRule);
   const [applyToAll, setApplyToAll] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
 
   useEffect(() => {
-    setFormRule(buildInitial(rule));
+    const next = buildInitial(rule);
+    setFormRule(next);
+    formRuleRef.current = next;
     setApplyToAll(false);
   }, [rule, baseCurrency]);
 
-  const handleChange = (field, value) => {
+  const setFormRuleWithRef = (updater) => {
     setFormRule(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      formRuleRef.current = next;
+      return next;
+    });
+  };
+
+  const handleChange = (field, value) => {
+    setFormRuleWithRef(prev => {
       // default earnings percentage
       if (field === 'amountType' && value === 'earnings' && (!prev.externalAmount || prev.externalAmount <= 0)) {
         return { ...prev, amountType: value, externalAmount: 100 };
@@ -76,7 +87,7 @@ export function TransferRuleForm({
   };
 
   const handleSubmit = () => {
-    const cleaned = { ...formRule };
+    const cleaned = { ...formRuleRef.current };
     if (!cleaned.external) {
       cleaned.direction = 'internal';
       cleaned.fromExternal = false;
@@ -133,26 +144,53 @@ export function TransferRuleForm({
     );
   };
 
-  const DateWithMilestone = ({ value, onChange, name, onSelectMilestone, onManualChange }) => {
-    const displayVal = value ? value.slice(0, 7) : '';
-    const handleChange = (val) => onChange(val ? `${val}-01` : '');
+  const DateWithMilestone = ({ value, milestoneId, onChange, name, onSelectMilestone, onManualChange }) => {
+    const displayVal = value || '';
+    const milestone = milestones.find((m) => m.id == milestoneId);
+    const showMilestone = !!milestone;
+    const handleDateChange = (val) => {
+      onManualChange?.();
+      onChange(val);
+    };
+    const handleDateBlur = (e) => {
+      const input = e.target;
+      requestAnimationFrame(() => handleDateChange(input.value));
+    };
     return (
       <div className="relative flex items-center">
-        <input
-          type="month"
-          value={displayVal}
-          onChange={(e) => {
-            onManualChange?.();
-            handleChange(e.target.value);
-          }}
-          className="w-full pr-12 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-        />
+        {showMilestone ? (
+          <input
+            type="text"
+            value={milestone.label}
+            readOnly
+            className="w-full pr-16 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs focus:outline-none focus:border-purple-400"
+          />
+        ) : (
+          <input
+            type="date"
+            value={displayVal}
+            onChange={(e) => handleDateChange(e.target.value)}
+            onInput={(e) => handleDateChange(e.target.value)}
+            onBlur={handleDateBlur}
+            className="w-full pr-12 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs focus:outline-none focus:border-purple-400"
+          />
+        )}
         <div className="absolute right-1 flex items-center gap-1">
+          {showMilestone && (
+            <button
+              type="button"
+              onClick={() => onManualChange?.()}
+              className="p-2 rounded-md bg-white/10 border border-white/20 text-white hover:bg-white/20"
+              title="Use a specific date"
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
+          )}
           <MilestonePicker
             name={name}
             onSelect={(m) => {
               onSelectMilestone?.(m);
-              handleChange(`${m.year}-01`);
+              onChange(`${m.year}-01-01`);
             }}
           />
         </div>
@@ -394,6 +432,7 @@ export function TransferRuleForm({
               <label className="block text-purple-200 text-sm mb-1">Date</label>
               <DateWithMilestone
                 value={formRule.startDate}
+                milestoneId={formRule.startMilestoneId}
                 onChange={(v) => handleChange('startDate', v)}
                 name="one_time"
                 onSelectMilestone={(m) => handleChange('startMilestoneId', m.id)}
@@ -406,6 +445,7 @@ export function TransferRuleForm({
                 <label className="block text-purple-200 text-sm mb-1">Start Date</label>
                 <DateWithMilestone
                   value={formRule.startDate}
+                  milestoneId={formRule.startMilestoneId}
                   onChange={(v) => handleChange('startDate', v)}
                   name="start"
                   onSelectMilestone={(m) => handleChange('startMilestoneId', m.id)}
@@ -416,6 +456,7 @@ export function TransferRuleForm({
                 <label className="block text-purple-200 text-sm mb-1">End Date (optional)</label>
                 <DateWithMilestone
                   value={formRule.endDate}
+                  milestoneId={formRule.endMilestoneId}
                   onChange={(v) => handleChange('endDate', v)}
                   name="end"
                   onSelectMilestone={(m) => handleChange('endMilestoneId', m.id)}

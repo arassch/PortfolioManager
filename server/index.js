@@ -1499,11 +1499,13 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
           );
         }
 
-        // Insert milestones
+        // Insert milestones and build ID map for transfer rules
+        const milestoneIdMap = new Map();
         for (const m of proj.milestones || []) {
-          await client.query(
+          const milestoneRes = await client.query(
             `INSERT INTO projection_milestones (projection_id, label, year, sort_order)
-             VALUES ($1, $2, $3, $4)`,
+             VALUES ($1, $2, $3, $4)
+             RETURNING id`,
             [
               dbProjId,
               m.label || 'Milestone',
@@ -1511,6 +1513,9 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
               m.sortOrder != null ? Number(m.sortOrder) : 0
             ]
           );
+          if (m.id != null) {
+            milestoneIdMap.set(String(m.id), milestoneRes.rows[0].id);
+          }
         }
 
         for (const rule of proj.transferRules || []) {
@@ -1518,6 +1523,12 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
             ? null
             : (rule.fromAccountId ? accountIdMap.get(String(rule.fromAccountId)) : null);
           const toAccountId = rule.toExternal ? null : accountIdMap.get(String(rule.toAccountId));
+          const startMilestoneId = rule.startMilestoneId
+            ? milestoneIdMap.get(String(rule.startMilestoneId)) || null
+            : null;
+          const endMilestoneId = rule.endMilestoneId
+            ? milestoneIdMap.get(String(rule.endMilestoneId)) || null
+            : null;
 
           if (!rule.toExternal && !toAccountId && !rule.fromExternal) {
             throw new Error(`Unknown destination account id ${rule.toAccountId}`);
@@ -1553,9 +1564,9 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
                 ? (rule.intervalYears && Number(rule.intervalYears)) || 1
                 : null,
               rule.startDate || null,
-              rule.startMilestoneId || null,
+              startMilestoneId,
               rule.frequency === 'one_time' ? null : (rule.endDate || null),
-              rule.endMilestoneId || null,
+              endMilestoneId,
               rule.frequency === 'one_time' ? (rule.startDate || null) : null,
               rule.fromExternal || false,
               fromAccountId,
