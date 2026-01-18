@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ReferenceLine, ReferenceDot,
+  ReferenceLine, ReferenceDot, Scatter,
   PieChart, Pie, Cell
 } from 'recharts';
 import { Filter } from 'lucide-react';
@@ -41,10 +41,21 @@ export function ChartSection({
   };
   const TIME_TRAVEL_YEARS = Math.max(0, Math.floor(Number(import.meta.env.VITE_TIME_TRAVEL_YEARS || 0)));
   const nowYear = new Date().getFullYear() + TIME_TRAVEL_YEARS;
+  const { projectedTicks, projectedDomain } = useMemo(() => {
+    const start = nowYear;
+    const end = nowYear + (projectionYears ?? 0);
+    const ticks = [];
+    for (let y = start; y <= end; y++) {
+      ticks.push(y);
+    }
+    return { projectedTicks: ticks, projectedDomain: [start, end] };
+  }, [nowYear, projectionYears]);
+  const nowCoord = nowYear;
   const nowLabel = useMemo(() => {
     if (!projectionData || projectionData.length === 0) return null;
-    const minYear = Math.min(...projectionData.map((p) => p.year));
-    const maxYear = Math.max(...projectionData.map((p) => p.year));
+    const years = projectionData.map((p) => p.year);
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
     if (nowYear === minYear) return null;
     if (nowYear < minYear) return projectionData[0]?.label ?? null;
     if (nowYear >= maxYear) return projectionData[projectionData.length - 1]?.label ?? null;
@@ -75,10 +86,14 @@ export function ChartSection({
   };
   const getAgeAtLabel = (label) => {
     if (!birthdate || !label) return null;
-    const year = Number(label);
-    if (!Number.isFinite(year)) return null;
     const bd = new Date(birthdate);
     if (Number.isNaN(bd.getTime())) return null;
+    let year = Number(label);
+    if (!Number.isFinite(year)) {
+      const parsed = new Date(label);
+      if (Number.isNaN(parsed.getTime())) return null;
+      year = parsed.getUTCFullYear();
+    }
     const birthYear = bd.getFullYear();
     return Math.max(0, year - birthYear);
   };
@@ -139,57 +154,84 @@ export function ChartSection({
   const renderGrowthTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     const current = payload[0].payload;
-    const idx = projectionData.findIndex((p) => p.label === label);
+    const labelStr = current?.label || label;
+    const idx = projectionData.findIndex((p) => p.label === labelStr);
     const prev = idx > 0 ? projectionData[idx - 1] : null;
     const prevValue = prev?.projected ?? 0;
-    const delta = current.projected - prevValue;
+    const delta = (current.projected ?? 0) - prevValue;
     const pct = prevValue ? `${((delta / prevValue) * 100).toFixed(1)}%` : 'n/a';
     const net = current.projectedNet != null ? current.projectedNet : null;
-        const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
-    const age = getAgeAtLabel(label);
+    const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
+    const age = getAgeAtLabel(labelStr);
+    const actualItems = accounts
+      .filter((acc) => current[`account_${acc.id}_observed`] != null)
+      .map((acc) => ({
+        name: acc.name,
+        value: current[`account_${acc.id}_observed`],
+        color: getAccountColor(acc.id)
+      }));
+    const hasProjected = current.projected != null;
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
-        <div className="font-semibold">{label}</div>
+        <div className="font-semibold">{labelStr}</div>
         <div className="mt-1 space-y-1">
           {age != null && <div className="text-xs text-purple-200">Age: {age}</div>}
-          <div>Projected: {formatCurrency(current.projected)}</div>
-          {prev && (
-            <div className="text-xs text-purple-200">
-              Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
-            </div>
+          {hasProjected && (
+            <>
+              <div>Projected: {formatCurrency(current.projected)}</div>
+              {prev && (
+                <div className="text-xs text-purple-200">
+                  Prev: {formatCurrency(prevValue)} | Δ {formatCurrency(delta)} ({pct})
+                </div>
+              )}
+              {net != null && (
+                <div className="text-emerald-200">
+                  After-tax est: {formatCurrency(net)}{estTax != null ? ` (Est tax: ${formatCurrency(estTax)})` : ''}
+                </div>
+              )}
+            </>
           )}
-          {net != null && (
-            <div className="text-emerald-200">
-              After-tax est: {formatCurrency(net)}{estTax != null ? ` (Est tax: ${formatCurrency(estTax)})` : ''}
-            </div>
+          {!hasProjected && actualItems.length === 0 && current.actual != null && (
+            <div>Actual: {formatCurrency(current.actual)}</div>
           )}
-          {/* <div className="text-xs text-purple-200">Real return rate = ((1 + nominal rate) / (1 + inflation)) - 1.</div> */}
-          
+
           {showIndividualAccounts && (
             <div className="pt-1 text-xs text-slate-200 space-y-1">
-              {buildAccountBreakdown(current, prev).map((item) => (
+              {hasProjected &&
+                buildAccountBreakdown(current, prev).map((item) => (
+                  <div key={item.name} className="flex items-start gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full mt-1"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <div>
+                      <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
+                      {item.net != null && item.estTax != null && item.estTax > 0 && (
+                        <div className="text-[11px] text-emerald-200">
+                          After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
+                        </div>
+                      )}
+                      {item.actualVal != null && (
+                        <div className="text-[11px] text-green-200 flex items-center gap-1">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full border"
+                            style={{ borderColor: item.color, backgroundColor: 'transparent' }}
+                          />
+                          <span>Actual {item.name}: {formatCurrency(item.actualVal)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              {!hasProjected && actualItems.length > 0 && actualItems.map((item) => (
                 <div key={item.name} className="flex items-start gap-2">
                   <span
-                    className="inline-block h-2.5 w-2.5 rounded-full mt-1"
-                    style={{ backgroundColor: item.color }}
+                    className="inline-block h-2.5 w-2.5 rounded-full mt-1 border"
+                    style={{ borderColor: item.color, backgroundColor: 'transparent' }}
                   />
                   <div>
-                    <span className="font-semibold">{item.name}:</span> {formatCurrency(item.current)} ({item.calc})
-                    {item.net != null && item.estTax != null && item.estTax > 0 && (
-                      <div className="text-[11px] text-emerald-200">
-                        After-tax est: {formatCurrency(item.net)}{item.estTax != null ? ` (Est tax: ${formatCurrency(item.estTax)})` : ''}
-                      </div>
-                    )}
-                    {item.actualVal != null && (
-                      <div className="text-[11px] text-green-200 flex items-center gap-1">
-                        <span
-                          className="inline-block h-2.5 w-2.5 rounded-full border"
-                          style={{ borderColor: item.color, backgroundColor: 'transparent' }}
-                        />
-                        <span>Actual {item.name}: {formatCurrency(item.actualVal)}</span>
-                      </div>
-                    )}
+                    <span className="font-semibold">{item.name}:</span> {formatCurrency(item.value)}
                   </div>
                 </div>
               ))}
@@ -203,7 +245,8 @@ export function ChartSection({
   const renderEarningsTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     const current = payload[0].payload;
-    const idx = projectionData.findIndex((p) => p.label === label);
+    const labelStr = current?.label || label;
+    const idx = projectionData.findIndex((p) => p.label === labelStr);
     const prev = idx > 0 ? projectionData[idx - 1] : null;
     const prevProjected = prev?.projected ?? 0;
     const currProjected = current.projected ?? 0;
@@ -211,11 +254,11 @@ export function ChartSection({
     const pct = prevProjected ? `${((delta / prevProjected) * 100).toFixed(1)}%` : 'n/a';
     const net = current.projectedNet != null ? current.projectedNet : null;
     const estTax = net != null && current.projected != null ? Math.max(current.projected - net, 0) : null;
-    const age = getAgeAtLabel(label);
+    const age = getAgeAtLabel(labelStr);
 
     return (
       <div className="rounded-lg border border-white/20 bg-slate-900/95 px-3 py-2 text-sm text-white shadow-lg">
-        <div className="font-semibold">{label}</div>
+        <div className="font-semibold">{labelStr}</div>
         <div className="mt-1 space-y-1">
           {age != null && <div className="text-xs text-purple-200">Age: {age}</div>}
           <div>Earnings: {formatCurrency(current.totalReturn || 0)}</div>
@@ -275,7 +318,7 @@ export function ChartSection({
       } else {
         acc.invested += value;
       }
-      if (account.taxable) {
+      if (account.taxTreatment !== 'roth') {
         acc.taxed += value;
       } else {
         acc.nonTaxed += value;
@@ -313,7 +356,7 @@ export function ChartSection({
       } else {
         invested += val;
       }
-      if (acc.taxable) taxed += val; else nonTaxed += val;
+      if (acc.taxTreatment !== 'roth') taxed += val; else nonTaxed += val;
     });
     return { invested, cash, taxed, nonTaxed };
   };
@@ -327,6 +370,25 @@ export function ChartSection({
     { name: 'Taxed', value: hoverTotals.taxed, color: '#f97316' },
     { name: 'Non-Taxed', value: hoverTotals.nonTaxed, color: '#34d399' }
   ];
+
+  const observedDots = useMemo(() => {
+    const dots = [];
+    (projectionData || []).forEach((p) => {
+      accounts
+        .filter((acc) => selectedAccounts[acc.id] !== false) // default to included
+        .forEach((acc) => {
+          const val = p[`account_${acc.id}_observed`];
+          if (val != null && Number.isFinite(p.xCoord)) {
+            dots.push({
+              x: p.xCoord,
+              y: val,
+              color: getColorForIndex(accounts.findIndex((a) => a.id === acc.id), accounts.length)
+            });
+          }
+        });
+    });
+    return dots;
+  }, [projectionData, accounts, selectedAccounts]);
 
   const renderPieLegend = (data) => {
     const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
@@ -462,15 +524,23 @@ export function ChartSection({
               <LineChart
                 data={projectionData}
                 onMouseMove={(state) => {
-              const payload = state?.activePayload;
-              if (payload && payload[0]?.payload) {
-                setHoverData(payload[0].payload);
-              }
-            }}
-            onMouseLeave={() => setHoverData(getDefaultHover())}
-            >
+                  const payload = state?.activePayload;
+                  const first = payload && payload[0]?.payload;
+                  if (first && first.projected != null) {
+                    setHoverData(first);
+                  }
+                }}
+                onMouseLeave={() => setHoverData(getDefaultHover())}
+              >
               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-              <XAxis dataKey="label" stroke="#ffffff80" />
+              <XAxis
+                type="number"
+                dataKey="xCoord"
+                stroke="#ffffff80"
+                ticks={projectedTicks}
+                tickFormatter={(val) => Math.round(val).toString()}
+                domain={projectedDomain}
+              />
               <YAxis
                 stroke="#ffffff80"
                 tickFormatter={formatYAxisTick}
@@ -479,7 +549,7 @@ export function ChartSection({
               <Legend />
               {nowLabel && (
                 <ReferenceLine
-                  x={nowLabel}
+                  x={nowCoord}
                   stroke="#fbbf24"
                   strokeWidth={2}
                   strokeDasharray="6 6"
@@ -496,7 +566,7 @@ export function ChartSection({
                   />
                   {fiYearLabel && (
                     <ReferenceLine
-                      x={fiYearLabel}
+                      x={Number(fiYearLabel)}
                       stroke="#22d3ee70"
                       strokeDasharray="2 6"
                       strokeWidth={1}
@@ -504,7 +574,7 @@ export function ChartSection({
                   )}
                   {fiYearLabel && (
                     <ReferenceDot
-                      x={fiYearLabel}
+                      x={Number(fiYearLabel)}
                       y={fiTarget}
                       r={6}
                       fill="#34d399"
@@ -520,40 +590,60 @@ export function ChartSection({
                 stroke="#a78bfa"
                 strokeWidth={3}
                 dot={false}
+                connectNulls
                 animationDuration={1500}
               />
-                {showIndividualAccounts &&
-                  accounts
-                    .filter((acc) => selectedAccounts[acc.id])
-                    .map((account) => {
-                      const color = getAccountColor(account.id);
-                      return (
-                        <React.Fragment key={account.id}>
-                          <Line
-                            type="monotone"
-                            dataKey={`account_${account.id}`}
-                            name={account.name}
-                            stroke={color}
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls
-                            animationDuration={1500}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={`account_${account.id}_observed`}
-                            name=""
-                            legendType="none"
-                            stroke={color}
-                            strokeWidth={2}
-                            strokeDasharray="4 4"
-                            dot={{ r: 5, stroke: '#0f172a', strokeWidth: 1, fill: color }}
-                            connectNulls
-                            isAnimationActive={false}
-                          />
-                        </React.Fragment>
-                      );
-                    })}
+              {showIndividualAccounts &&
+                accounts
+                  .filter((acc) => selectedAccounts[acc.id])
+                  .map((account) => {
+                    const color = getAccountColor(account.id);
+                    return (
+                      <React.Fragment key={account.id}>
+                        <Line
+                          type="monotone"
+                          dataKey={`account_${account.id}`}
+                          name={account.name}
+                          stroke={color}
+                          strokeWidth={2}
+                          dot={false}
+                          connectNulls
+                          animationDuration={1500}
+                        />
+                      </React.Fragment>
+                    );
+                  })}
+              {accounts
+                .filter((acc) => selectedAccounts[acc.id])
+                .map((account) => {
+                  const color = getAccountColor(account.id);
+                  return (
+                    <Line
+                      key={`observed-${account.id}`}
+                      type="monotone"
+                      dataKey={`account_${account.id}_observed`}
+                      stroke={color}
+                      strokeWidth={1.5}
+                      strokeDasharray="3 6"
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                      isAnimationActive={false}
+                    />
+                  );
+                })}
+              {observedDots.length > 0 &&
+                observedDots.map((dot, idx) => (
+                  <ReferenceDot
+                    key={`obs-${idx}`}
+                    x={dot.x}
+                    y={dot.y}
+                    r={4}
+                    fill="#0f172a"
+                    stroke={dot.color || '#fff'}
+                    strokeWidth={1.5}
+                  />
+                ))}
               </LineChart>
             ) : (
               <BarChart
@@ -567,7 +657,14 @@ export function ChartSection({
               onMouseLeave={() => setHoverData(getDefaultHover())}
             >
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                <XAxis dataKey="label" stroke="#ffffff80" />
+                <XAxis
+                  type="number"
+                  dataKey="xCoord"
+                  stroke="#ffffff80"
+                  ticks={projectedTicks}
+                  tickFormatter={(val) => Math.round(val).toString()}
+                  domain={projectedDomain}
+                />
                 <YAxis
                   stroke="#ffffff80"
                   tickFormatter={formatYAxisTick}

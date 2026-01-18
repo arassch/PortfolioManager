@@ -14,42 +14,54 @@ export function AccountItem({
   onAddActualValue,
   onDeleteActualValue,
   actualValues = {},
-  showActualValueInput,
-  onToggleActualValueInput,
   enableProjectionFields = true,
   showReturnRate = true
 }) {
-  const [year, setYear] = useState('');
+  const [dateVal, setDateVal] = useState('');
   const [value, setValue] = useState('');
   const [balanceDraft, setBalanceDraft] = useState(account.balance);
+  const [showActualPanel, setShowActualPanel] = useState(false);
 
   useEffect(() => {
     setBalanceDraft(account.balance);
   }, [account.balance, isEditing]);
 
   const handleAddActual = () => {
-    const yearInt = parseInt(year, 10);
     const actualValue = parseFloat(String(value).replace(/,/g, ''));
-    if (!isNaN(yearInt) && !isNaN(actualValue)) {
-      onAddActualValue(account.id, yearInt, actualValue);
-      setYear('');
+    if (!isNaN(actualValue) && dateVal) {
+      onAddActualValue(account.id, dateVal, actualValue);
+      setDateVal('');
       setValue('');
-      onToggleActualValueInput?.();
     }
   };
   const currentYear = new Date().getFullYear();
   const actualEntries = Object.entries(actualValues || {})
     .map(([key, val]) => {
-      const numKey = Number(key);
-      const yearValue = numKey >= 1900 ? numKey : currentYear + numKey; // support legacy offsets
-      return { key: numKey, value: val, year: yearValue };
+      const keyString = typeof key === 'string'
+        ? key
+        : key instanceof Date
+          ? key.toISOString().slice(0, 10)
+          : String(key);
+      const match = keyString.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+      const hasDate = !!match;
+      const yearValue = hasDate ? Number(match[1]) : Number(key);
+      const label = hasDate
+        ? `${match[1]}-${match[2]}${match[3] ? `-${match[3]}` : ''}`
+        : keyString;
+      return { key, value: val, year: Number.isFinite(yearValue) ? yearValue : currentYear, label };
     })
-    .sort((a, b) => a.year - b.year);
+    .sort((a, b) => a.year - b.year || a.label.localeCompare(b.label));
 
   const returnRate = account.returnRate;
   const rateLabel = account.type === 'cash' ? 'Interest' : 'Return Rate';
   const saveProjection = onSaveProjectionValue || onSaveEdit;
   const canEditRate = isEditing && enableProjectionFields;
+  const effectiveTaxTreatment = account.taxTreatment ?? (account.taxable ? 'taxable' : 'roth');
+  const taxTreatmentLabel = effectiveTaxTreatment === 'deferred'
+    ? 'Taxed (Full)'
+    : effectiveTaxTreatment === 'taxable'
+      ? 'Taxed (Gains)'
+      : 'Tax Free';
 
   const formatInputNumber = (val) => {
     if (val === '' || val === null || val === undefined) return '';
@@ -96,24 +108,26 @@ export function AccountItem({
               {account.currency}
             </span>
             {isEditing ? (
-              <label className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-white/5 border border-white/10 text-purple-100 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={!!account.taxable}
+              <label className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-white/5 border border-white/10 text-purple-100">
+                <span>Tax Treatment</span>
+                <select
+                  value={effectiveTaxTreatment}
                   onChange={(e) => {
-                    const checked = e.target.checked;
-                    onSaveEdit(account.id, 'taxable', checked);
-                    onSaveEdit(account.id, 'taxTreatment', checked ? 'taxable' : 'roth');
+                    const next = e.target.value;
+                    onSaveEdit(account.id, 'taxTreatment', next);
                   }}
-                  className="w-3 h-3"
-                />
-                Taxable
+                  className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
+                >
+                  <option value="taxable">Taxed (Gains)</option>
+                  <option value="deferred">Taxed (Full)</option>
+                  <option value="roth">Tax Free</option>
+                </select>
               </label>
-            ) : account.taxable ? (
+            ) : (
               <span className="px-2 py-1 rounded text-xs bg-orange-500/30 text-orange-200">
-                Taxable
+                {taxTreatmentLabel}
               </span>
-            ) : null}
+            )}
           </div>
           <div className={`grid gap-4 text-sm ${showReturnRate ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
             <div>
@@ -168,22 +182,40 @@ export function AccountItem({
             )}
             <div>
               <button
-                onClick={() => onToggleActualValueInput?.()}
+                onClick={() => setShowActualPanel((prev) => !prev)}
                 className="text-sm text-purple-300 hover:text-purple-200 underline"
               >
-                Edit Actual Values
+                {showActualPanel ? 'Hide Actual Values' : 'Show Actual Values'}
               </button>
             </div>
           </div>
-          {showActualValueInput && (
+          {showActualPanel && actualEntries.length > 0 && (
+            <div className="mt-3 text-sm text-purple-100 space-y-1">
+              {actualEntries.map((entry) => (
+                <div
+                  key={entry.key}
+                  className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1"
+                >
+                  <span>{entry.label}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
+                  <button
+                    onClick={() => onDeleteActualValue?.(account.id, entry.key)}
+                    className="text-red-300 hover:text-red-200 text-xs underline"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showActualPanel && (
             <div className="mt-3 space-y-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input
-                  type="number"
-                  placeholder="Year"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                  type="date"
+                  placeholder="Date"
+                  value={dateVal}
+                  onChange={(e) => setDateVal(e.target.value)}
+                  className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
                 />
                 <input
                   type="text"
@@ -200,21 +232,6 @@ export function AccountItem({
                   Save
                 </button>
               </div>
-              {actualEntries.length > 0 && (
-                <div className="text-sm text-purple-100 space-y-1">
-                  {actualEntries.map((entry) => (
-                    <div key={entry.year} className="flex items-center justify-between bg-white/5 border border-white/10 rounded px-2 py-1">
-                      <span>{entry.year}: {CurrencyService.formatCurrency(entry.value, account.currency)}</span>
-                      <button
-                        onClick={() => onDeleteActualValue?.(account.id, entry.key)}
-                        className="text-red-300 hover:text-red-200 text-xs underline"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>

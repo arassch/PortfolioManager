@@ -240,65 +240,44 @@ function AuthScreen({ auth }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-        <h1 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Planner</h1>
-        <p className="text-purple-200 text-center mb-6">
-          {mode === 'login' && 'Sign in to your account'}
-          {mode === 'register' && 'Create an account to get started'}
-          {mode === 'resetRequest' && 'Request a password reset'}
-          {mode === 'resetConfirm' && 'Set a new password'}
-        </p>
-        {mode === 'resetConfirm' ? (
-          <form onSubmit={handleResetConfirm} className="space-y-4">
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">New Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            {(localError || auth.error) && (
-              <div className="text-red-300 text-sm">{localError || auth.error}</div>
-            )}
-            {resetMessage && (
-              <div className="text-green-300 text-sm">{resetMessage}</div>
-            )}
-            <button
-              type="submit"
-              disabled={auth.isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-all"
-            >
-              {auth.isLoading ? 'Working...' : 'Update Password'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-purple-100 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
-                required
-              />
-            </div>
-            {mode !== 'resetRequest' && (
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        <div className="space-y-6 text-white">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-purple-200/80 mb-2">Portfolio Planner</p>
+            <h1 className="text-3xl md:text-4xl font-bold leading-tight">A simple portfolio and FIRE planning tool.</h1>
+            {/* <p className="text-purple-100/90 mt-3">Model your accounts and projections in one place. See when you might reach FI — and compare projections with real outcomes over time. Deliberately simple.</p> */}
+          </div>
+          <ul className="space-y-3 text-purple-50/90">
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>Model your accounts and projections in one place.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>See when you might reach FI — and compare projections with real outcomes over time.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-1 h-2 w-2 rounded-full bg-purple-300" />
+              <span>Deliberately simple. No bloat, just clear decisions.</span>
+            </li>
+          </ul>
+          <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20 max-w-xl">
+            <img src="/hero.gif" alt="Product preview" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        <div className="w-full max-w-md lg:ml-auto bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-bold text-white mb-2 text-center">Portfolio Planner</h2>
+          <p className="text-purple-200 text-center mb-6">
+            {mode === 'login' && 'Sign in to your account'}
+            {mode === 'register' && 'Create an account to get started'}
+            {mode === 'resetRequest' && 'Request a password reset'}
+            {mode === 'resetConfirm' && 'Set a new password'}
+          </p>
+          {mode === 'resetConfirm' ? (
+            <form onSubmit={handleResetConfirm} className="space-y-4">
               <div>
-                <label className="block text-sm text-purple-100 mb-1">Password</label>
+                <label className="block text-sm text-purple-100 mb-1">New Password</label>
                 <input
                   type="password"
                   value={password}
@@ -307,87 +286,135 @@ function AuthScreen({ auth }) {
                   required
                 />
               </div>
-            )}
+              <div>
+                <label className="block text-sm text-purple-100 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  required
+                />
+              </div>
+              {(localError || auth.error) && (
+                <div className="text-red-300 text-sm">{localError || auth.error}</div>
+              )}
+              {resetMessage && (
+                <div className="text-green-300 text-sm">{resetMessage}</div>
+              )}
+              <button
+                type="submit"
+                disabled={auth.isLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-all"
+              >
+                {auth.isLoading ? 'Working...' : 'Update Password'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-purple-100 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                  required
+                />
+              </div>
+              {mode !== 'resetRequest' && (
+                <div>
+                  <label className="block text-sm text-purple-100 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+                    required
+                  />
+                </div>
+              )}
 
-            {(localError || auth.error) && (
-              <div className="text-red-300 text-sm">{localError || auth.error}</div>
-            )}
-            {resetMessage && (
-              <div className="text-green-300 text-sm">{resetMessage}</div>
-            )}
-            {mode === 'login' && showResend && (
-              <div className="mt-2 text-xs text-purple-100 text-center">
-                {(localError || auth.error) && (localError?.toLowerCase().includes('verify') || auth.error?.toLowerCase().includes('verify')) && (
-                  <div className="text-red-200 mb-1">Email not verified.</div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  className="underline"
-                >
-                  Resend verification email
+              {(localError || auth.error) && (
+                <div className="text-red-300 text-sm">{localError || auth.error}</div>
+              )}
+              {resetMessage && (
+                <div className="text-green-300 text-sm">{resetMessage}</div>
+              )}
+              {mode === 'login' && showResend && (
+                <div className="mt-2 text-xs text-purple-100 text-center">
+                  {(localError || auth.error) && (localError?.toLowerCase().includes('verify') || auth.error?.toLowerCase().includes('verify')) && (
+                    <div className="text-red-200 mb-1">Email not verified.</div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="underline"
+                  >
+                    Resend verification email
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={auth.isLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
+              >
+                {auth.isLoading
+                  ? 'Working...'
+                  : mode === 'login'
+                    ? 'Sign In'
+                    : mode === 'register'
+                      ? 'Create Account'
+                      : 'Send Reset Email'}
+              </button>
+
+              {showGoogleButton && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="h-px bg-white/20 flex-1" />
+                    <span className="text-xs text-purple-200">or</span>
+                    <div className="h-px bg-white/20 flex-1" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div ref={googleButtonRef} />
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
+
+          <div className="mt-4 text-center text-sm text-purple-100">
+            {mode === 'login' ? (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('register')}>
+                  Need an account? Sign up
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : mode === 'register' ? (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('login')}>
+                  Already have an account? Sign in
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button className="underline block w-full" onClick={() => setMode('login')}>
+                  Back to sign in
+                </button>
+                <button className="underline block w-full" onClick={() => setMode('register')}>
+                  Need an account? Sign up
                 </button>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={auth.isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-all"
-            >
-              {auth.isLoading
-                ? 'Working...'
-                : mode === 'login'
-                  ? 'Sign In'
-                  : mode === 'register'
-                    ? 'Create Account'
-                    : 'Send Reset Email'}
-            </button>
-
-            {showGoogleButton && (
-              <div className="pt-2">
-                <div className="flex items-center gap-3 my-2">
-                  <div className="h-px bg-white/20 flex-1" />
-                  <span className="text-xs text-purple-200">or</span>
-                  <div className="h-px bg-white/20 flex-1" />
-                </div>
-                <div className="flex justify-center">
-                  <div ref={googleButtonRef} />
-                </div>
-              </div>
-            )}
-          </form>
-        )}
-
-        <div className="mt-4 text-center text-sm text-purple-100">
-          {mode === 'login' ? (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('register')}>
-                Need an account? Sign up
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
-                Forgot password?
-              </button>
-            </div>
-          ) : mode === 'register' ? (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('login')}>
-                Already have an account? Sign in
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('resetRequest')}>
-                Forgot password?
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <button className="underline block w-full" onClick={() => setMode('login')}>
-                Back to sign in
-              </button>
-              <button className="underline block w-full" onClick={() => setMode('register')}>
-                Need an account? Sign up
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -421,7 +448,6 @@ function PortfolioManager({ auth }) {
   const [projectionYearsDraft, setProjectionYearsDraft] = useState(portfolio.projectionYears ?? 10);
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [showIndividualAccounts, setShowIndividualAccounts] = useState(true);
-  const [showActualInput, setShowActualInput] = useState(null);
   const ONBOARDING_VERSION = 1;
   const [onboardingState, setOnboardingState] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
@@ -731,16 +757,17 @@ function PortfolioManager({ auth }) {
   }, [projectionSeries, fiTarget, getAgeAtYear]);
 
   const latestAccountValues = useMemo(() => {
-    const currentYear = new Date().getFullYear();
     const values = {};
     (portfolio.accounts || []).forEach((acc) => {
       const entries = portfolio.actualValues?.[acc.id] || {};
       let latestYear = -Infinity;
       let latestVal = null;
       Object.entries(entries).forEach(([key, val]) => {
-        const numKey = Number(key);
-        const absYear = numKey >= 1900 ? numKey : currentYear + numKey;
-        if (!Number.isNaN(absYear) && absYear >= latestYear) {
+        const parsed = new Date(key);
+        const absYear = !Number.isNaN(parsed.getTime())
+          ? parsed.getUTCFullYear()
+          : null;
+        if (Number.isFinite(absYear) && absYear >= latestYear) {
           latestYear = absYear;
           latestVal = val;
         }
@@ -756,8 +783,42 @@ function PortfolioManager({ auth }) {
       series.data.forEach(point => years.add(point.year));
     });
     const accountIds = (portfolio.accounts || []).map(acc => acc.id);
+    const accountMap = (portfolio.accounts || []).reduce((map, acc) => {
+      map[acc.id] = acc;
+      return map;
+    }, {});
     const refSeries = projectionSeries[0];
     const earliestYear = refSeries?.data?.[0]?.year;
+    const hasExplicitActuals = Object.values(portfolio.actualValues || {}).some(
+      (entries) => entries && Object.keys(entries).length > 0
+    );
+    const latestActualsByYear = {};
+    if (hasExplicitActuals) {
+      accountIds.forEach((id) => {
+        const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
+        if (selected === false) return;
+        const account = accountMap[id];
+        const entries = (portfolio.actualValues || {})[id] || {};
+        Object.entries(entries).forEach(([key, val]) => {
+          const keyStr = String(key);
+          const match = keyStr.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+          if (!match) return;
+          const year = Number(match[1]);
+          if (!Number.isFinite(year)) return;
+          const month = match[2] ? Number(match[2]) - 1 : 0;
+          const day = match[3] ? Number(match[3]) : 1;
+          const score = Date.UTC(year, Math.max(0, month), Math.max(1, day));
+          const baseVal = account
+            ? CurrencyService.convertToBase(val, account.currency, portfolio.baseCurrency)
+            : Number(val);
+          if (!latestActualsByYear[year]) latestActualsByYear[year] = {};
+          const current = latestActualsByYear[year][id];
+          if (!current || score >= current.score) {
+            latestActualsByYear[year][id] = { score, value: baseVal };
+          }
+        });
+      });
+    }
 
     return Array.from(years)
       .sort((a, b) => a - b)
@@ -771,36 +832,38 @@ function PortfolioManager({ auth }) {
           row[`projection_${series.id}`] = found.projected;
         });
 
-        // Actuals: only initial account value (earliest year) and explicit actual datapoints; no projection fallback
-        if (refSeries) {
-          const refPoint = refSeries.data.find(p => p.year === year);
-          if (refPoint) {
-            let sum = 0;
-            let hasAny = false;
-            accountIds.forEach((id) => {
-              const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
-              if (selected === false) return;
-              const acctActual = refPoint[`account_${id}_actual`];
-              if (acctActual != null) {
-                sum += acctActual;
+        if (hasExplicitActuals) {
+          let sum = 0;
+          let hasAny = false;
+          accountIds.forEach((id) => {
+            const selected = selectedAccounts[String(id)] ?? selectedAccounts[id];
+            if (selected === false) return;
+            const actualEntry = latestActualsByYear[year]?.[id];
+            if (actualEntry) {
+              sum += actualEntry.value;
+              hasAny = true;
+            } else if (year === earliestYear) {
+              const account = accountMap[id];
+              if (account) {
+                sum += CurrencyService.convertToBase(account.balance, account.currency, portfolio.baseCurrency);
                 hasAny = true;
-              } else if (year === earliestYear) {
-                const acctInitial = refPoint[`account_${id}`];
-                if (acctInitial != null) {
-                  sum += acctInitial;
-                  hasAny = true;
-                }
               }
-            });
-            if (hasAny) {
-              row.actual = Math.round(sum);
             }
+          });
+          if (hasAny) {
+            row.actual = Math.round(sum);
           }
         }
 
         return row;
       });
-  }, [projectionSeries, portfolio.accounts, selectedAccounts]);
+  }, [
+    projectionSeries,
+    portfolio.accounts,
+    portfolio.actualValues,
+    selectedAccounts,
+    portfolio.baseCurrency
+  ]);
 
   if (subscriptionRequired) {
     return (
@@ -935,6 +998,39 @@ function PortfolioManager({ auth }) {
     }
   };
 
+  const handleEditAccountForm = async (accountData) => {
+    try {
+      const updatedAccounts = portfolio.accounts.map((acc) =>
+        String(acc.id) === String(accountData.id)
+          ? new Account({ ...acc.toJSON(), ...accountData })
+          : acc
+      );
+
+      let updatedProjections = portfolio.projections;
+      if (typeof accountData.returnRate === 'number' && targetProjectionId) {
+        updatedProjections = portfolio.projections.map((proj) => {
+          if (String(proj.id) !== String(targetProjectionId)) return proj;
+          const overrides = { ...(proj.accountOverrides || {}) };
+          const current = overrides[accountData.id] || {};
+          overrides[accountData.id] = { ...current, returnRate: accountData.returnRate };
+          return new Projection({ ...proj.toJSON(), accountOverrides: overrides });
+        });
+      }
+
+      const updatedPortfolio = new Portfolio({
+        ...portfolio.toJSON(),
+        accounts: updatedAccounts,
+        projections: updatedProjections.map((p) => p.toJSON()),
+        activeProjectionId
+      });
+      updatePortfolio(updatedPortfolio);
+      await savePortfolio(updatedPortfolio, { skipReload: true });
+      setEditingAccountId(null);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
   const handleSaveAccountEdit = async (accountId, field, value) => {
     const isProjectionField = field === 'returnRate';
     const updatedAccounts = isProjectionField
@@ -966,6 +1062,7 @@ function PortfolioManager({ auth }) {
   };
 
   const handleDeleteAccount = async (accountId) => {
+    if (!window.confirm('Delete this account? This cannot be undone.')) return;
     const accounts = portfolio.accounts.filter(acc => String(acc.id) !== String(accountId));
     const cleanedActuals = { ...portfolio.actualValues };
     delete cleanedActuals[accountId];
@@ -988,12 +1085,12 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
-  const handleAddActualValue = async (accountId, year, value) => {
+  const handleAddActualValue = async (accountId, key, value) => {
     const updatedActualValues = {
       ...portfolio.actualValues,
       [accountId]: {
         ...(portfolio.actualValues[accountId] || {}),
-        [year]: value
+        [key]: value
       }
     };
     const updatedPortfolio = new Portfolio({
@@ -1004,9 +1101,9 @@ function PortfolioManager({ auth }) {
     await savePortfolio(updatedPortfolio);
   };
 
-  const handleDeleteActualValue = async (accountId, year) => {
+  const handleDeleteActualValue = async (accountId, key) => {
     const accountActuals = { ...(portfolio.actualValues[accountId] || {}) };
-    delete accountActuals[year];
+    delete accountActuals[key];
     const updatedActualValues = { ...portfolio.actualValues };
     if (Object.keys(accountActuals).length === 0) {
       delete updatedActualValues[accountId];
@@ -1701,11 +1798,22 @@ function PortfolioManager({ auth }) {
 
               <div className="space-y-3">
                 {portfolio.accounts.map(account => (
+                  editingAccountId === account.id ? (
+                    <div key={account.id} className="bg-white/5 rounded-lg p-4 border border-white/20">
+                      <AccountForm
+                        initialData={account}
+                        baseCurrency={portfolio.baseCurrency}
+                        allowReturnRateEdit={false}
+                        onSubmit={(data) => handleEditAccountForm({ ...data, id: account.id })}
+                        onCancel={() => setEditingAccountId(null)}
+                      />
+                    </div>
+                  ) : (
                     <AccountItem
                       key={account.id}
                       account={account}
                       displayBalance={latestAccountValues[account.id]}
-                      isEditing={editingAccountId === account.id}
+                      isEditing={false}
                       onStartEdit={() => setEditingAccountId(account.id)}
                       onDelete={() => handleDeleteAccount(account.id)}
                       onFinishEdit={() => setEditingAccountId(null)}
@@ -1714,11 +1822,10 @@ function PortfolioManager({ auth }) {
                       onAddActualValue={handleAddActualValue}
                       onDeleteActualValue={handleDeleteActualValue}
                       actualValues={portfolio.actualValues[account.id] || {}}
-                      showActualValueInput={showActualInput === account.id}
-                      onToggleActualValueInput={() => setShowActualInput(showActualInput === account.id ? null : account.id)}
                       enableProjectionFields={allowProjectionEditing}
                       showReturnRate={allowProjectionEditing}
                     />
+                  )
                 ))}
               </div>
 

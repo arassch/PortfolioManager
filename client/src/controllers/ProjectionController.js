@@ -19,22 +19,34 @@ class ProjectionController {
     const transferRules = portfolio.transferRules || [];
     const inflation = portfolio.inflationRate ?? 0;
 
-    // Build actuals by absolute year (with legacy offset support)
+    // Build actuals (date-based)
     const actualTotalsByYear = {};
     const actualByAccountYear = {};
+    const actualPoints = [];
     portfolio.accounts.forEach(account => {
       const entries = portfolio.actualValues[account.id] || {};
       const isSelected = selectedAccounts[account.id] !== false; // default to included when not specified
       Object.entries(entries).forEach(([key, val]) => {
-        const numKey = Number(key);
-        const yearValue = numKey >= 1900 ? numKey : currentYear + numKey;
+        const keyStr = String(key);
+        const match = keyStr.match(/^(\d{4})-(\d{2})(-(\d{2}))?$/);
+        if (!match) return;
+        const yearValue = Number(match[1]);
+        const monthValue = Number(match[2]);
         if (!isSelected) return;
         const baseVal = CurrencyService.convertToBase(val, account.currency, portfolio.baseCurrency);
         actualTotalsByYear[yearValue] = (actualTotalsByYear[yearValue] || 0) + baseVal;
         if (!actualByAccountYear[yearValue]) actualByAccountYear[yearValue] = {};
         actualByAccountYear[yearValue][account.id] = baseVal;
+        actualPoints.push({
+          label: `${yearValue}-${String(monthValue).padStart(2, '0')}`,
+          xCoord: yearValue + (monthValue - 1) / 12,
+          year: yearValue,
+          accountId: account.id,
+          value: baseVal
+        });
       });
     });
+    
 
     const minActualYear = Object.keys(actualTotalsByYear)
       .map(Number)
@@ -48,7 +60,8 @@ class ProjectionController {
           year: y,
           label: y.toString(),
           projected: null,
-        totalReturn: 0,
+          yearSort: y,
+          totalReturn: 0,
           actual: actualTotalsByYear[y] ? Math.round(actualTotalsByYear[y]) : null
         };
         if (actualByAccountYear[y]) {
@@ -87,6 +100,7 @@ class ProjectionController {
       const yearData = {
         year,
         label: year.toString(),
+        yearSort: year,
         projected: 0,
         totalReturn: 0,
         actual: null
@@ -188,7 +202,7 @@ class ProjectionController {
         if (!isSelected) return;
 
         const value = accountBalances[account.id];
-        const effectiveTreatment = account.taxable ? 'taxable' : 'roth';
+        const effectiveTreatment = account.taxTreatment ?? 'roth';
         const afterTax = this.calculateAfterTaxValue(
           value,
           accountBasis[account.id],
@@ -209,32 +223,14 @@ class ProjectionController {
         }
 
         const projectedRounded = Math.round(value);
-        let observedVal = null;
         yearData[`account_${account.id}`] = projectedRounded;
         if (yearIndex === 0) {
-          observedVal = projectedRounded; // initial balance counts as an observed point
+          yearData[`account_${account.id}_observed`] = projectedRounded;
         }
-        if (yearIndex > 0 && account.taxable) {
+        if (yearIndex > 0 && effectiveTreatment !== 'roth') {
           yearData[`account_${account.id}_net`] = afterTaxRounded;
         }
         yearData[`account_${account.id}_transfers`] = Math.round(transferTotals[account.id] || 0);
-
-        const actualForYear =
-          portfolio.actualValues[account.id]?.[year] ??
-          portfolio.actualValues[account.id]?.[yearIndex]; // support legacy index-based data
-        if (actualForYear !== undefined) {
-          const actualBase = CurrencyService.convertToBase(
-            actualForYear,
-            account.currency,
-            portfolio.baseCurrency
-          );
-          totalActual += actualBase;
-          const roundedActual = Math.round(actualBase);
-          yearData[`account_${account.id}_actual`] = roundedActual;
-          observedVal = roundedActual; // actual datapoint
-        }
-
-        yearData[`account_${account.id}_observed`] = observedVal;
       });
 
       yearData.projected = Math.round(totalProjected);
@@ -242,11 +238,32 @@ class ProjectionController {
       yearData.projectedNet = (yearIndex === 0 || totalTaxRounded === 0) ? null : totalProjectedAfterTaxRounded;
       yearData.totalReturn = Math.round(totalReturnForYear);
       yearData.actual = totalActual > 0 ? Math.round(totalActual) : null;
+      yearData.xCoord = year;
 
       data.push(yearData);
     }
 
-    return data;
+    // Inject monthly actual points (do not affect projection lines)
+    const actualPointMap = {};
+    actualPoints.forEach(({ label, xCoord, year, accountId, value }) => {
+      if (!actualPointMap[label]) {
+        actualPointMap[label] = {
+          year,
+          label,
+          xCoord,
+          projected: null,
+          totalReturn: null,
+          actual: 0
+        };
+      }
+      actualPointMap[label].actual += Math.round(value);
+      actualPointMap[label][`account_${accountId}_observed`] = Math.round(value);
+      actualPointMap[label][`account_${accountId}_actual`] = Math.round(value);
+    });
+
+    const combined = [...data, ...Object.values(actualPointMap)];
+    combined.sort((a, b) => (a.xCoord || a.year) - (b.xCoord || b.year));
+    return combined;
   }
 
   shouldApplyRule(rule, year, month, isMonthlyPhase) {
@@ -323,7 +340,7 @@ class ProjectionController {
       basisMoved = fromBasis * proportion;
       const gainPortion = Math.max(availableAmount - basisMoved, 0);
       const fromAccount = portfolio.getAccountById(rule.fromAccountId);
-      const taxableRate = fromAccount?.taxable ? (taxRate / 100) : 0;
+      const taxableRate = fromAccount?.taxTreatment === 'taxable' ? (taxRate / 100) : 0;
       const tax = gainPortion * taxableRate;
       netOut = Math.max(availableAmount - tax, 0);
       accountBalances[rule.fromAccountId] -= (netOut + tax);

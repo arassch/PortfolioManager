@@ -528,7 +528,9 @@ const normalizeAccount = (row) => ({
   balance: Number(row.balance),
   currency: row.currency,
   returnRate: Number(row.return_rate || 0),
-  taxable: row.taxable,
+  taxTreatment: row.tax_treatment ?? 'roth',
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 const normalizeTransferRule = (row) => {
@@ -1206,7 +1208,16 @@ app.get('/api/portfolio', authenticate, async (req, res) => {
       if (!actualValues[row.account_id]) {
         actualValues[row.account_id] = {};
       }
-      actualValues[row.account_id][row.year_index] = Number(row.value);
+      if (row.observed_at) {
+        const key = typeof row.observed_at === 'string'
+          ? row.observed_at.slice(0, 10)
+          : [
+              row.observed_at.getFullYear(),
+              String(row.observed_at.getMonth() + 1).padStart(2, '0'),
+              String(row.observed_at.getDate()).padStart(2, '0')
+            ].join('-');
+        actualValues[row.account_id][key] = Number(row.value);
+      }
     });
   
     res.json({
@@ -1336,23 +1347,89 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
       await client.query('DELETE FROM projection_milestones WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM projection_accounts WHERE projection_id IN (SELECT id FROM projections WHERE portfolio_id = $1)', [portfolioId]);
       await client.query('DELETE FROM actual_values WHERE account_id IN (SELECT id FROM accounts WHERE portfolio_id = $1)', [portfolioId]);
-      await client.query('DELETE FROM accounts WHERE portfolio_id = $1', [portfolioId]);
 
-      // Insert accounts and get their new IDs
       const accountIdMap = new Map();
+      const existingAccountsRes = await client.query(
+        `SELECT id, name, type, balance, currency, return_rate, tax_treatment
+         FROM accounts WHERE portfolio_id = $1`,
+        [portfolioId]
+      );
+      const existingAccountsById = new Map(
+        existingAccountsRes.rows.map((row) => [String(row.id), row])
+      );
+      const existingAccountIds = new Set(existingAccountsById.keys());
+      const incomingAccountIds = new Set();
+
+      // Insert or update accounts and build ID map
       for (const account of accounts) {
         const accountRate = account.returnRate ?? 0;
-        const accountRes = await client.query(
-          `INSERT INTO accounts (portfolio_id, name, type, balance, currency, return_rate, taxable)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [
-            portfolioId, account.name, account.type, account.balance,
-            account.currency, accountRate, account.taxable
-          ]
+        const taxTreatment = account.taxTreatment ?? 'roth';
+        const createdAt = account.createdAt ? new Date(account.createdAt) : null;
+        const incomingId = account.id != null ? String(account.id) : null;
+        if (incomingId && existingAccountIds.has(incomingId)) {
+          const existing = existingAccountsById.get(incomingId);
+          const hasChanges = existing && (
+            existing.name !== account.name ||
+            existing.type !== account.type ||
+            Number(existing.balance) !== Number(account.balance) ||
+            existing.currency !== account.currency ||
+            Number(existing.return_rate || 0) !== Number(accountRate) ||
+            (existing.tax_treatment ?? 'roth') !== taxTreatment
+          );
+          if (hasChanges) {
+            await client.query(
+              `UPDATE accounts
+               SET name = $1,
+                   type = $2,
+                   balance = $3,
+                   currency = $4,
+                   return_rate = $5,
+                   tax_treatment = $6,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $7 AND portfolio_id = $8`,
+              [
+                account.name,
+                account.type,
+                account.balance,
+                account.currency,
+                accountRate,
+                taxTreatment,
+                Number(incomingId),
+                portfolioId
+              ]
+            );
+          }
+          accountIdMap.set(incomingId, Number(incomingId));
+          incomingAccountIds.add(incomingId);
+        } else {
+          const accountRes = await client.query(
+            `INSERT INTO accounts (portfolio_id, name, type, balance, currency, return_rate, tax_treatment, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+             RETURNING id`,
+            [
+              portfolioId, account.name, account.type, account.balance,
+              account.currency, accountRate, taxTreatment, createdAt
+            ]
+          );
+          const dbId = accountRes.rows[0].id;
+          if (incomingId) {
+            accountIdMap.set(incomingId, dbId);
+            incomingAccountIds.add(incomingId);
+          } else {
+            accountIdMap.set(String(dbId), dbId);
+          }
+        }
+      }
+
+      const deleteIds = Array.from(existingAccountIds)
+        .filter((id) => !incomingAccountIds.has(id))
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      if (deleteIds.length > 0) {
+        await client.query(
+          'DELETE FROM accounts WHERE portfolio_id = $1 AND id = ANY($2::int[])',
+          [portfolioId, deleteIds]
         );
-        // Map old temporary ID to new database ID
-        accountIdMap.set(String(account.id), accountRes.rows[0].id);
       }
 
       // Upsert projections and map any temporary IDs
@@ -1493,20 +1570,33 @@ app.post('/api/portfolio', authenticate, requireCsrf, asyncHandler(async (req, r
         }
       }
 
-      // Upsert actual values against the remapped account IDs
-      for (const [accountId, valuesByYear] of Object.entries(actualValues)) {
+      // Upsert actual values against the remapped account IDs (date-based)
+      for (const [accountId, valuesByDate] of Object.entries(actualValues)) {
         const dbAccountId = accountIdMap.get(String(accountId));
         if (!dbAccountId) {
           throw new Error(`Unknown account id ${accountId} for actual values`);
         }
 
-        for (const [yearIndex, value] of Object.entries(valuesByYear || {})) {
+        for (const [key, value] of Object.entries(valuesByDate || {})) {
+          let observedAt = null;
+          const keyStr = String(key);
+          const dateMatch = keyStr.match(/^(\d{4})-(\d{2})(-(\d{2}))?$/);
+          if (dateMatch) {
+            // Use the provided string directly to avoid timezone shifts; if day missing, default to 01
+            observedAt = dateMatch[3] ? keyStr : `${dateMatch[1]}-${dateMatch[2]}-01`;
+          } else {
+            // fallback: try to parse as year and store Jan 1
+            const legacyYear = Number(key);
+            if (!Number.isFinite(legacyYear)) continue;
+            observedAt = `${legacyYear}-01-01`;
+          }
+          if (!observedAt) continue;
           await client.query(
-            `INSERT INTO actual_values (account_id, year_index, value)
+            `INSERT INTO actual_values (account_id, observed_at, value)
              VALUES ($1, $2, $3)
-             ON CONFLICT (account_id, year_index)
+             ON CONFLICT (account_id, observed_at)
              DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
-            [dbAccountId, Number(yearIndex), value]
+            [dbAccountId, observedAt, value]
           );
         }
       }
