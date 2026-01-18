@@ -152,40 +152,83 @@ export function TransferRuleForm({
       onManualChange?.();
       onChange(val);
     };
-    const handleDateBlur = (e) => {
-      const input = e.target;
-      requestAnimationFrame(() => handleDateChange(input.value));
+    const currentYear = new Date().getFullYear();
+    const parseDateParts = (val) => {
+      const match = val?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return { year: '', month: '', day: '' };
+      return { year: match[1], month: match[2], day: match[3] };
+    };
+    const parts = parseDateParts(displayVal);
+    const daysInMonth = (year, month) => {
+      if (!year || !month) return 31;
+      return new Date(Number(year), Number(month), 0).getDate();
+    };
+    const dayOptions = Array.from({ length: daysInMonth(parts.year, parts.month) }, (_, idx) =>
+      String(idx + 1).padStart(2, '0')
+    );
+    const yearOptions = Array.from({ length: 101 }, (_, idx) => String(currentYear - 50 + idx));
+    const monthOptions = Array.from({ length: 12 }, (_, idx) => String(idx + 1).padStart(2, '0'));
+    const updateDate = (next) => {
+      const year = next.year || parts.year;
+      const month = next.month || parts.month;
+      const day = next.day || parts.day;
+      if (!year || !month || !day) {
+        handleDateChange('');
+        return;
+      }
+      const maxDay = daysInMonth(year, month);
+      const safeDay = Math.min(Number(day), maxDay);
+      handleDateChange(`${year}-${month}-${String(safeDay).padStart(2, '0')}`);
     };
     return (
       <div className="relative flex items-center">
         {showMilestone ? (
-          <input
-            type="text"
-            value={milestone.label}
-            readOnly
-            className="w-full pr-16 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs focus:outline-none focus:border-purple-400"
-          />
-        ) : (
-          <input
-            type="date"
-            value={displayVal}
-            onChange={(e) => handleDateChange(e.target.value)}
-            onInput={(e) => handleDateChange(e.target.value)}
-            onBlur={handleDateBlur}
-            className="w-full pr-12 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs focus:outline-none focus:border-purple-400"
-          />
-        )}
-        <div className="absolute right-1 flex items-center gap-1">
-          {showMilestone && (
+          <div className="w-full pr-16 pl-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs flex items-center justify-between gap-3">
+            <span>{milestone.label}</span>
             <button
               type="button"
               onClick={() => onManualChange?.()}
-              className="p-2 rounded-md bg-white/10 border border-white/20 text-white hover:bg-white/20"
+              className="text-purple-200 hover:text-purple-100"
               title="Use a specific date"
             >
               <Calendar className="w-4 h-4" />
             </button>
-          )}
+          </div>
+        ) : (
+          <div className="w-full pr-8 pl-2 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-xs flex gap-0.5">
+            <select
+              value={parts.month}
+              onChange={(e) => updateDate({ month: e.target.value })}
+              className="bg-transparent text-white focus:outline-none w-9 text-center appearance-none"
+            >
+              <option value="">MM</option>
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <select
+              value={parts.day}
+              onChange={(e) => updateDate({ day: e.target.value })}
+              className="bg-transparent text-white focus:outline-none w-9 text-center appearance-none"
+            >
+              <option value="">DD</option>
+              {dayOptions.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <select
+              value={parts.year}
+              onChange={(e) => updateDate({ year: e.target.value })}
+              className="bg-transparent text-white focus:outline-none w-12 text-center appearance-none"
+            >
+              <option value="">YYYY</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="absolute right-1 flex items-center gap-1">
           <MilestonePicker
             name={name}
             onSelect={(m) => {
