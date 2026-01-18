@@ -106,7 +106,7 @@ export function TransferRuleForm({
     onSubmit({ ...cleaned, applyToAll });
   };
 
-  const MilestonePicker = ({ onSelect, name }) => {
+  const MilestonePicker = ({ onSelect, name, onClear }) => {
     const hasMilestones = milestones && milestones.length > 0;
     return (
       <div className="relative">
@@ -121,6 +121,18 @@ export function TransferRuleForm({
         </button>
         {openDropdown === name && (
           <div className="absolute z-20 right-0 mt-1 w-48 bg-slate-900 border border-white/20 rounded-lg shadow-lg max-h-56 overflow-auto">
+            {onClear && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClear();
+                  setOpenDropdown(null);
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-purple-200 hover:bg-white/10"
+              >
+                No end date (∞)
+              </button>
+            )}
             {milestones.map((m) => (
               <button
                 key={m.id}
@@ -235,6 +247,12 @@ export function TransferRuleForm({
               onSelectMilestone?.(m);
               onChange(`${m.year}-01-01`);
             }}
+            onClear={name === 'end'
+              ? () => {
+                  onManualChange?.();
+                  onChange('');
+                }
+              : null}
           />
         </div>
       </div>
