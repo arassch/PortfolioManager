@@ -162,6 +162,7 @@ const transporter = process.env.SMTP_HOST
     })
   : null;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || 'contact@portfolioplanner.cc';
 
 const sendResetEmail = async (to, token) => {
   const resetBase = process.env.RESET_URL_BASE || process.env.CLIENT_URL || 'http://localhost:5173';
@@ -244,6 +245,49 @@ const sendVerificationEmail = async (to, token) => {
     subject: 'Verify your email',
     text: `Verify your email: ${verifyLink}`,
     html: `<p>Verify your email:</p><p><a href="${verifyLink}">${verifyLink}</a></p>`
+  });
+};
+
+const sendAdminNewUserEmail = async ({ email, userId, method }) => {
+  if (!ADMIN_NOTIFY_EMAIL) return;
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
+  const subject = 'New user registration';
+  const text = `New user registered.\nEmail: ${email}\nUser ID: ${userId}\nMethod: ${method || 'unknown'}`;
+  const html = `<p>New user registered.</p><ul><li>Email: ${email}</li><li>User ID: ${userId}</li><li>Method: ${method || 'unknown'}</li></ul>`;
+
+  if (RESEND_API_KEY) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to: ADMIN_NOTIFY_EMAIL,
+        subject,
+        text,
+        html
+      })
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`Resend API failed: ${res.status} ${msg}`);
+    }
+    return;
+  }
+
+  if (!transporter) {
+    console.warn('SMTP not configured; skipping admin registration email.');
+    return;
+  }
+
+  await transporter.sendMail({
+    from,
+    to: ADMIN_NOTIFY_EMAIL,
+    subject,
+    text,
+    html
   });
 };
 
@@ -651,6 +695,11 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
       return res.status(500).json({ error: 'Failed to send verification email' });
     }
   }
+  try {
+    await sendAdminNewUserEmail({ email: user.email, userId: user.id, method: 'password' });
+  } catch (err) {
+    console.error('Failed to send admin registration email', err);
+  }
   res.json({
     success: true,
     verificationSent: true,
@@ -755,6 +804,7 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
   );
   let user = userRes.rows[0];
 
+  let createdNew = false;
   if (!user) {
     const created = await pool.query(
       `INSERT INTO users (
@@ -772,6 +822,7 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
       [email, null, googleSub, isWhitelisted, initialStatus, isWhitelisted ? null : trialEnds]
     );
     user = created.rows[0];
+    createdNew = true;
   } else {
     // Link google_sub + mark verified; keep existing subscription fields unless missing
     const needsLink = user.google_sub !== googleSub;
@@ -794,6 +845,13 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
 
   // Ensure we have trial provisioned for non-whitelisted users if missing
   user = await provisionTrialIfNeeded(user);
+  if (createdNew) {
+    try {
+      await sendAdminNewUserEmail({ email: user.email, userId: user.id, method: 'google' });
+    } catch (err) {
+      console.error('Failed to send admin registration email', err);
+    }
+  }
 
   // Always refresh Stripe subscription on Google login if available
   if (stripe && user.stripe_subscription_id) {
