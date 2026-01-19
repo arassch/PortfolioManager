@@ -2049,9 +2049,9 @@ function PortfolioManager({ auth }) {
                   </div>
                 </div>
                 <div className="grid gap-3">
-                  {projectionView.accounts.map((account) => {
+                  {projectionView.accounts.filter((account) => account.type !== 'debt').map((account) => {
                     const rate = projectionRateDrafts[account.id] ?? '';
-                    const label = account.type === 'cash' ? 'Interest %' : account.type === 'debt' ? 'Return Rate %' : 'Return Rate %';
+                    const label = account.type === 'cash' ? 'Interest %' : 'Return Rate %';
                     const field = 'returnRate';
                     const persistRate = () => {
                       const num = parseFloat(rate);
