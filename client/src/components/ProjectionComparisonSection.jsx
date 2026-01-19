@@ -86,6 +86,7 @@ export function ProjectionComparisonSection({
 
   const totals = accounts.reduce(
     (acc, account) => {
+      if (account.type === 'debt') return acc;
       if (selectedAccounts[account.id] === false) return acc;
       const value = CurrencyService.convertToBase(
         account.balance,

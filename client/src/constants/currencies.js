@@ -21,7 +21,7 @@ export const CURRENCY_SYMBOLS = {
   CHF: 'Fr'
 };
 
-export const ACCOUNT_TYPES = ['investment', 'cash'];
+export const ACCOUNT_TYPES = ['investment', 'cash', 'debt'];
 export const FREQUENCIES = ['annual', 'monthly'];
 export const AMOUNT_TYPES = ['fixed', 'earnings'];
 

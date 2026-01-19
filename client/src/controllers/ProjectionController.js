@@ -136,6 +136,10 @@ class ProjectionController {
         for (let month = 1; month <= 12; month++) {
           const monthNetGain = {};
           portfolio.accounts.forEach(account => {
+            if (account.type === 'debt') {
+              monthNetGain[account.id] = 0;
+              return;
+            }
             const nominalAnnual = ((account.getReturnRate?.() ?? account.returnRate ?? 0)) / 100;
             const inflationAnnual = (portfolio.inflationRate ?? 0) / 100;
             // Fisher equation for real annual rate
@@ -202,16 +206,20 @@ class ProjectionController {
         if (!isSelected) return;
 
         const value = accountBalances[account.id];
-        const effectiveTreatment = account.taxTreatment ?? 'roth';
-        const afterTax = this.calculateAfterTaxValue(
-          value,
-          accountBasis[account.id],
-          effectiveTreatment,
-          taxRate
-        );
+        const isDebt = account.type === 'debt';
+        const effectiveTreatment = isDebt ? 'roth' : (account.taxTreatment ?? 'roth');
+        const afterTax = isDebt
+          ? -value
+          : this.calculateAfterTaxValue(
+              value,
+              accountBasis[account.id],
+              effectiveTreatment,
+              taxRate
+            );
         const afterTaxRounded = Math.round(afterTax);
 
-        totalProjected += value;
+        const signedValue = isDebt ? -value : value;
+        totalProjected += signedValue;
         totalProjectedAfterTaxRounded += afterTaxRounded;
 
         if (yearIndex > 0) {
@@ -222,7 +230,7 @@ class ProjectionController {
           yearData[`account_${account.id}_return`] = 0;
         }
 
-        const projectedRounded = Math.round(value);
+        const projectedRounded = Math.round(signedValue);
         yearData[`account_${account.id}`] = projectedRounded;
         if (yearIndex === 0) {
           yearData[`account_${account.id}_observed`] = projectedRounded;
@@ -300,6 +308,11 @@ class ProjectionController {
 
   applyTransfer(rule, portfolio, accountBalances, periodGrowth, transferTotals, baseCurrency, taxRate, accountBasis) {
     let availableAmount = 0;
+    let netOut = 0;
+    let basisMoved = 0;
+    let tax = 0;
+    let fromBasis = 0;
+    let fromValue = 0;
 
     if (rule.fromExternal) {
       availableAmount = CurrencyService.convertToBase(
@@ -310,6 +323,7 @@ class ProjectionController {
     } else {
       const fromAccount = portfolio.getAccountById(rule.fromAccountId);
       if (!fromAccount) return;
+      if (fromAccount.type === 'debt') return;
 
       if (rule.amountType === 'earnings') {
         const growth = periodGrowth[rule.fromAccountId] || 0; // already net of tax
@@ -322,6 +336,13 @@ class ProjectionController {
           baseCurrency
         );
       }
+      const fromBalance = accountBalances[rule.fromAccountId] || 0;
+      if (fromBalance <= 0) {
+        return;
+      }
+      if (availableAmount > fromBalance) {
+        availableAmount = fromBalance;
+      }
     }
 
     const toAccountId = rule.toAccountId;
@@ -329,26 +350,23 @@ class ProjectionController {
       return;
     }
 
-    let netOut = availableAmount;
-    let basisMoved = 0;
-
     if (!rule.fromExternal && rule.fromAccountId) {
       // Move basis proportionally when transferring between accounts; apply tax on gains if taxable
-      const fromValue = accountBalances[rule.fromAccountId];
-      const fromBasis = accountBasis[rule.fromAccountId] || 0;
+      fromValue = accountBalances[rule.fromAccountId];
+      fromBasis = accountBasis[rule.fromAccountId] || 0;
       const proportion = fromValue > 0 ? Math.min(1, availableAmount / fromValue) : 1;
       basisMoved = fromBasis * proportion;
       const gainPortion = Math.max(availableAmount - basisMoved, 0);
       const fromAccount = portfolio.getAccountById(rule.fromAccountId);
       const taxableRate = fromAccount?.taxTreatment === 'taxable' ? (taxRate / 100) : 0;
-      const tax = gainPortion * taxableRate;
+      tax = gainPortion * taxableRate;
       netOut = Math.max(availableAmount - tax, 0);
-      accountBalances[rule.fromAccountId] -= (netOut + tax);
-      accountBasis[rule.fromAccountId] = Math.max(0, fromBasis - basisMoved);
-      transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - netOut - tax;
     } else if (rule.fromExternal) {
       // External contribution increases basis on the target
+      netOut = availableAmount;
       basisMoved = availableAmount;
+    } else {
+      netOut = availableAmount;
     }
 
     if (rule.toExternal) {
@@ -356,6 +374,34 @@ class ProjectionController {
       return;
     }
 
+    const toAccount = portfolio.getAccountById(toAccountId);
+    if (toAccount?.type === 'debt') {
+      const currentBalance = accountBalances[toAccountId] || 0;
+      if (currentBalance <= 0 || netOut <= 0) {
+        return;
+      }
+      if (netOut > currentBalance) {
+        const scale = currentBalance / netOut;
+        netOut = currentBalance;
+        tax *= scale;
+        basisMoved *= scale;
+      }
+      if (!rule.fromExternal && rule.fromAccountId) {
+        accountBalances[rule.fromAccountId] -= (netOut + tax);
+        accountBasis[rule.fromAccountId] = Math.max(0, fromBasis - basisMoved);
+        transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - netOut - tax;
+      }
+      accountBalances[toAccountId] = Math.max(0, currentBalance - netOut);
+      transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + netOut;
+      accountBasis[toAccountId] = Math.max(0, (accountBasis[toAccountId] || 0) - basisMoved);
+      return;
+    }
+
+    if (!rule.fromExternal && rule.fromAccountId) {
+      accountBalances[rule.fromAccountId] -= (netOut + tax);
+      accountBasis[rule.fromAccountId] = Math.max(0, fromBasis - basisMoved);
+      transferTotals[rule.fromAccountId] = (transferTotals[rule.fromAccountId] || 0) - netOut - tax;
+    }
     accountBalances[toAccountId] += netOut;
     transferTotals[toAccountId] = (transferTotals[toAccountId] || 0) + netOut;
     accountBasis[toAccountId] = (accountBasis[toAccountId] || 0) + basisMoved;

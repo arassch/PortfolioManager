@@ -2051,7 +2051,7 @@ function PortfolioManager({ auth }) {
                 <div className="grid gap-3">
                   {projectionView.accounts.map((account) => {
                     const rate = projectionRateDrafts[account.id] ?? '';
-                    const label = account.type === 'cash' ? 'Interest %' : 'Return Rate %';
+                    const label = account.type === 'cash' ? 'Interest %' : account.type === 'debt' ? 'Return Rate %' : 'Return Rate %';
                     const field = 'returnRate';
                     const persistRate = () => {
                       const num = parseFloat(rate);
@@ -2081,7 +2081,12 @@ function PortfolioManager({ auth }) {
                                 persistRate();
                               }
                             }}
-                            className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                            disabled={account.type === 'debt'}
+                            className={`w-24 px-2 py-1 rounded border text-white text-sm ${
+                              account.type === 'debt'
+                                ? 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+                                : 'bg-white/10 border-white/20'
+                            }`}
                           />
                         </div>
                       </div>

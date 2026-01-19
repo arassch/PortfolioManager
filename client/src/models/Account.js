@@ -8,7 +8,7 @@ export class Account {
     this.type = data.type || 'investment'; // 'investment' or 'cash'
     this.balance = parseFloat(data.balance) || 0;
     this.currency = data.currency || 'USD';
-    this.returnRate = parseFloat(data.returnRate ?? 0) || 0;
+    this.returnRate = this.type === 'debt' ? 0 : (parseFloat(data.returnRate ?? 0) || 0);
     // Tax treatment/basis for after-tax views
     this.taxTreatment = data.taxTreatment ?? (data.taxable ? 'taxable' : 'roth'); // 'taxable' | 'deferred' | 'roth'
     this.costBasis = Number.isFinite(parseFloat(data.costBasis)) ? parseFloat(data.costBasis) : this.balance; // starting principal/basis

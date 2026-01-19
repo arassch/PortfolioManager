@@ -308,6 +308,7 @@ export function ChartSection({
   };
   const totals = accounts.reduce(
     (acc, account) => {
+      if (account.type === 'debt') return acc;
       const value = CurrencyService.convertToBase(
         account.balance,
         account.currency,
@@ -349,6 +350,7 @@ export function ChartSection({
     let taxed = 0;
     let nonTaxed = 0;
     accounts.forEach(acc => {
+      if (acc.type === 'debt') return;
       const val = source[`account_${acc.id}`];
       if (val == null || !selectedAccounts[acc.id]) return;
       if (acc.type === 'cash') {

@@ -22,7 +22,17 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
   const [errors, setErrors] = useState([]);
 
   const handleChange = (field, value) => {
-    setAccount(prev => ({ ...prev, [field]: value }));
+    setAccount(prev => {
+      if (field === 'type' && value === 'debt') {
+        return {
+          ...prev,
+          type: value,
+          returnRate: 0,
+          taxTreatment: 'roth'
+        };
+      }
+      return { ...prev, [field]: value };
+    });
     setErrors([]); // Clear errors on change
   };
 
@@ -124,10 +134,12 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
             placeholder="Interest Rate (%)"
             value={account.returnRate || ''}
             onChange={(e) => allowReturnRateEdit && handleChange('returnRate', e.target.value)}
-            disabled={!allowReturnRateEdit}
+            disabled={!allowReturnRateEdit || account.type === 'debt'}
             title={!allowReturnRateEdit ? 'Edit return rate inside projections' : undefined}
             className={`px-4 py-2 rounded-lg border text-white placeholder-white/50 focus:outline-none focus:border-purple-400 ${
-              allowReturnRateEdit ? 'bg-white/5 border-white/20' : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+              allowReturnRateEdit && account.type !== 'debt'
+                ? 'bg-white/5 border-white/20'
+                : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
             }`}
           />
         ) : (
@@ -137,10 +149,12 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
             placeholder="Expected Annual Return (%)"
             value={account.returnRate || ''}
             onChange={(e) => allowReturnRateEdit && handleChange('returnRate', e.target.value)}
-            disabled={!allowReturnRateEdit}
+            disabled={!allowReturnRateEdit || account.type === 'debt'}
             title={!allowReturnRateEdit ? 'Edit return rate inside projections' : undefined}
             className={`px-4 py-2 rounded-lg border text-white placeholder-white/50 focus:outline-none focus:border-purple-400 ${
-              allowReturnRateEdit ? 'bg-white/5 border-white/20' : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+              allowReturnRateEdit && account.type !== 'debt'
+                ? 'bg-white/5 border-white/20'
+                : 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
             }`}
           />
         )}
@@ -157,7 +171,12 @@ export function AccountForm({ baseCurrency, onSubmit, onCancel, initialData = nu
               const next = e.target.value;
               handleChange('taxTreatment', next);
             }}
-            className="px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white focus:outline-none focus:border-purple-400"
+            disabled={account.type === 'debt'}
+            className={`px-3 py-2 rounded-lg border text-white focus:outline-none focus:border-purple-400 ${
+              account.type === 'debt'
+                ? 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+                : 'bg-white/5 border-white/20'
+            }`}
           >
             <option value="taxable">Taxed (Gains)</option>
             <option value="deferred">Taxed (Full)</option>

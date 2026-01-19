@@ -100,7 +100,11 @@ export function AccountItem({
               <h4 className="text-lg font-semibold text-white">{account.name}</h4>
             )}
             <span className={`px-2 py-1 rounded text-xs ${
-              account.type === 'investment' ? 'bg-blue-500/30 text-blue-200' : 'bg-green-500/30 text-green-200'
+              account.type === 'investment'
+                ? 'bg-blue-500/30 text-blue-200'
+                : account.type === 'cash'
+                  ? 'bg-green-500/30 text-green-200'
+                  : 'bg-red-500/30 text-red-200'
             }`}>
               {account.type}
             </span>
@@ -116,14 +120,19 @@ export function AccountItem({
                     const next = e.target.value;
                     onSaveEdit(account.id, 'taxTreatment', next);
                   }}
-                  className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
+                  disabled={account.type === 'debt'}
+                  className={`px-2 py-1 rounded border text-white ${
+                    account.type === 'debt'
+                      ? 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+                      : 'bg-white/10 border-white/20'
+                  }`}
                 >
                   <option value="taxable">Taxed (Gains)</option>
                   <option value="deferred">Taxed (Full)</option>
                   <option value="roth">Tax Free</option>
                 </select>
               </label>
-            ) : (
+            ) : account.type === 'debt' ? null : (
               <span className="px-2 py-1 rounded text-xs bg-orange-500/30 text-orange-200">
                 {taxTreatmentLabel}
               </span>
@@ -168,11 +177,16 @@ export function AccountItem({
                       'returnRate',
                       parseFloat(e.target.value) || 0
                     )}
-                    className="w-16 px-2 py-1 rounded bg-white/10 border border-white/20 text-white"
+                    disabled={account.type === 'debt'}
+                    className={`w-16 px-2 py-1 rounded border text-white ${
+                      account.type === 'debt'
+                        ? 'bg-white/10 border-white/10 cursor-not-allowed opacity-70'
+                        : 'bg-white/10 border-white/20'
+                    }`}
                   />
                 ) : (
                   <span className="text-white font-semibold">
-                    {returnRate}%
+                    {account.type === 'debt' ? 'n/a' : `${returnRate}%`}
                     {isEditing && !enableProjectionFields && (
                       <span className="text-purple-300 text-xs ml-2">(edit in projection tabs)</span>
                     )}
